@@ -73,18 +73,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          RELEASE_ARGS=(
-            "${RELEASE_TAG}"
+          ASSETS=(
             dist/simulator-buddy-aarch64-apple-darwin.tar.gz
             dist/simulator-buddy-x86_64-apple-darwin.tar.gz
             dist/checksums.txt
             dist/simulator-buddy.rb
-            --title "${RELEASE_TAG}"
-            --generate-notes
           )
 
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            RELEASE_ARGS+=(--target "${GITHUB_SHA}")
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" "${ASSETS[@]}" --clobber
+            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TAG}"
+          else
+            RELEASE_ARGS=(
+              "${RELEASE_TAG}"
+              "${ASSETS[@]}"
+              --title "${RELEASE_TAG}"
+              --generate-notes
+            )
+
+            if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+              RELEASE_ARGS+=(--target "${GITHUB_SHA}")
+            fi
+
+            gh release create "${RELEASE_ARGS[@]}"
           fi
 
-          gh release create "${RELEASE_ARGS[@]}"
+      - name: Publish Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          ./Scripts/publish_homebrew_formula.sh \
+            --tap-repository ipavlidakis/homebrew-tap \
+            --formula-path dist/simulator-buddy.rb \
+            --release-version "${VERSION}" \
+            --formula-name simulator-buddy
