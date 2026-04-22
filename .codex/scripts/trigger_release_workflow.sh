@@ -15,11 +15,7 @@ require_command() {
 
 require_command gh
 require_command git
-
-if [[ ! -t 0 || ! -t 1 ]]; then
-  echo "This action needs an interactive terminal." >&2
-  exit 1
-fi
+require_command osascript
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "GitHub CLI is not authenticated." >&2
@@ -32,8 +28,30 @@ if [[ -z "${current_branch}" || "${current_branch}" == "HEAD" ]]; then
   exit 1
 fi
 
-printf 'Release version (for example 0.1.0): '
-IFS= read -r raw_version
+prompt_for_version() {
+  local response
+
+  if ! response="$(
+    osascript <<'APPLESCRIPT'
+tell application "System Events"
+  activate
+  set dialogResult to display dialog "Release version (for example 0.1.0)" default answer "" buttons {"Cancel", "Trigger"} default button "Trigger"
+  return text returned of dialogResult
+end tell
+APPLESCRIPT
+  )"; then
+    echo "Release cancelled." >&2
+    exit 130
+  fi
+
+  printf '%s\n' "${response}"
+}
+
+raw_version="${RELEASE_VERSION:-}"
+if [[ -z "${raw_version}" ]]; then
+  raw_version="$(prompt_for_version)"
+fi
+
 version="${raw_version#v}"
 
 if [[ -z "${version}" ]]; then
@@ -47,6 +65,11 @@ if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z.-]+)?$ ]]; then
 fi
 
 release_tag="v${version}"
+
+if [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
+  echo "Dry run: gh workflow run release.yml --repo ${DEFAULT_REPOSITORY} --ref ${current_branch} -f version=${version}"
+  exit 0
+fi
 
 gh workflow run release.yml \
   --repo "${DEFAULT_REPOSITORY}" \

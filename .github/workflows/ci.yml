@@ -11,6 +11,11 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.3"
+      - name: Check Swift version
+        run: swift --version
       - name: Build and test
         run: swift test
       - name: Validate release assets and Homebrew rendering

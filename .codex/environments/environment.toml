@@ -7,65 +7,65 @@ script = ""
 [[actions]]
 name = "Build"
 icon = "tool"
-command = "swift build"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift build'"
 platform = "darwin"
 
 [[actions]]
 name = "Test"
 icon = "tool"
-command = "swift test"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift test'"
 platform = "darwin"
 
 [[actions]]
 name = "Run Help"
 icon = "run"
-command = "swift run simulator-buddy --help"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy --help'"
 platform = "darwin"
 
 [[actions]]
 name = "List Destinations"
 icon = "run"
-command = "swift run simulator-buddy list --type all --format table"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy list --type all --format table'"
 platform = "darwin"
 
 [[actions]]
 name = "List Simulators"
 icon = "run"
-command = "swift run simulator-buddy list --type simulator --format table"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy list --type simulator --format table'"
 platform = "darwin"
 
 [[actions]]
 name = "List Devices"
 icon = "run"
-command = "swift run simulator-buddy list --type device --format table"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy list --type device --format table'"
 platform = "darwin"
 
 [[actions]]
 name = "Select Simulator"
 icon = "run"
-command = "swift run simulator-buddy select --type simulator"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy select --type simulator'"
 platform = "darwin"
 
 [[actions]]
 name = "Select Device"
 icon = "run"
-command = "swift run simulator-buddy select --type device"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy select --type device'"
 platform = "darwin"
 
 [[actions]]
 name = "Select Any Destination"
 icon = "run"
-command = "swift run simulator-buddy select --type all"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy select --type all'"
 platform = "darwin"
 
 [[actions]]
 name = "Check Release Artifacts"
 icon = "tool"
-command = "./Scripts/check_release_artifacts.sh"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; ./Scripts/check_release_artifacts.sh'"
 platform = "darwin"
 
 [[actions]]
 name = "Trigger Release Workflow"
 icon = "run"
-command = "./.codex/scripts/trigger_release_workflow.sh"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; ./.codex/scripts/trigger_release_workflow.sh'"
 platform = "darwin"
