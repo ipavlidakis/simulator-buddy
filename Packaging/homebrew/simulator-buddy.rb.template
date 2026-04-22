@@ -1,0 +1,23 @@
+class SimulatorBuddy < Formula
+  desc "Interactive selector for iOS simulators and devices"
+  homepage "https://github.com/__REPO__"
+  version "__VERSION__"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/__REPO__/releases/download/v#{version}/simulator-buddy-aarch64-apple-darwin.tar.gz"
+      sha256 "__ARM64_SHA__"
+    else
+      url "https://github.com/__REPO__/releases/download/v#{version}/simulator-buddy-x86_64-apple-darwin.tar.gz"
+      sha256 "__X86_64_SHA__"
+    end
+  end
+
+  def install
+    bin.install "simulator-buddy"
+  end
+
+  test do
+    assert_match "Usage:", shell_output("#{bin}/simulator-buddy --help")
+  end
+end

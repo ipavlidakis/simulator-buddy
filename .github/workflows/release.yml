@@ -1,0 +1,88 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (for example 0.1.0 or v0.1.0)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release version
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION_INPUT="${{ github.event.inputs.version }}"
+          else
+            VERSION_INPUT="${GITHUB_REF_NAME}"
+          fi
+
+          VERSION="${VERSION_INPUT#v}"
+          RELEASE_TAG="v${VERSION}"
+
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "${GITHUB_ENV}"
+
+      - name: Build archives
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          for ARCH in arm64 x86_64; do
+            swift build -c release --arch "${ARCH}" --product simulator-buddy
+
+            case "${ARCH}" in
+              arm64)
+                BUILD_TRIPLE="arm64-apple-macosx"
+                ARCHIVE_NAME="simulator-buddy-aarch64-apple-darwin.tar.gz"
+                ;;
+              x86_64)
+                BUILD_TRIPLE="x86_64-apple-macosx"
+                ARCHIVE_NAME="simulator-buddy-x86_64-apple-darwin.tar.gz"
+                ;;
+            esac
+
+            STAGE_DIR="$(mktemp -d)"
+            cp ".build/${BUILD_TRIPLE}/release/simulator-buddy" "${STAGE_DIR}/simulator-buddy"
+            tar -C "${STAGE_DIR}" -czf "dist/${ARCHIVE_NAME}" simulator-buddy
+          done
+
+          shasum -a 256 dist/simulator-buddy-*.tar.gz > dist/checksums.txt
+
+          ./Scripts/render_homebrew_formula.sh \
+            --version "${VERSION}" \
+            --repo ipavlidakis/simulator-buddy \
+            --checksums-file dist/checksums.txt \
+            > dist/simulator-buddy.rb
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_ARGS=(
+            "${RELEASE_TAG}"
+            dist/simulator-buddy-aarch64-apple-darwin.tar.gz
+            dist/simulator-buddy-x86_64-apple-darwin.tar.gz
+            dist/checksums.txt
+            dist/simulator-buddy.rb
+            --title "${RELEASE_TAG}"
+            --generate-notes
+          )
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            RELEASE_ARGS+=(--target "${GITHUB_SHA}")
+          fi
+
+          gh release create "${RELEASE_ARGS[@]}"

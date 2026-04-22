@@ -1,0 +1,71 @@
+version = 1
+name = "Simulator Buddy"
+
+[setup]
+script = ""
+
+[[actions]]
+name = "Build"
+icon = "tool"
+command = "swift build"
+platform = "darwin"
+
+[[actions]]
+name = "Test"
+icon = "tool"
+command = "swift test"
+platform = "darwin"
+
+[[actions]]
+name = "Run Help"
+icon = "run"
+command = "swift run simulator-buddy --help"
+platform = "darwin"
+
+[[actions]]
+name = "List Destinations"
+icon = "run"
+command = "swift run simulator-buddy list --type all --format table"
+platform = "darwin"
+
+[[actions]]
+name = "List Simulators"
+icon = "run"
+command = "swift run simulator-buddy list --type simulator --format table"
+platform = "darwin"
+
+[[actions]]
+name = "List Devices"
+icon = "run"
+command = "swift run simulator-buddy list --type device --format table"
+platform = "darwin"
+
+[[actions]]
+name = "Select Simulator"
+icon = "run"
+command = "swift run simulator-buddy select --type simulator"
+platform = "darwin"
+
+[[actions]]
+name = "Select Device"
+icon = "run"
+command = "swift run simulator-buddy select --type device"
+platform = "darwin"
+
+[[actions]]
+name = "Select Any Destination"
+icon = "run"
+command = "swift run simulator-buddy select --type all"
+platform = "darwin"
+
+[[actions]]
+name = "Check Release Artifacts"
+icon = "tool"
+command = "./Scripts/check_release_artifacts.sh"
+platform = "darwin"
+
+[[actions]]
+name = "Trigger Release Workflow"
+icon = "run"
+command = "./.codex/scripts/trigger_release_workflow.sh"
+platform = "darwin"
