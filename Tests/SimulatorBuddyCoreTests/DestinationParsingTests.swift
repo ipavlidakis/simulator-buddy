@@ -128,4 +128,35 @@ struct DestinationParsingTests {
         #expect(records[2].state == .unavailable)
         #expect(records[0].runtime == "iOS 26.4")
     }
+
+    @Test
+    func parseMacs_extractsAvailableMacsFromXctraceDevicesSection() throws {
+        let output = """
+        == Devices ==
+        MacBook Pro (MAC-UDID-1)
+        iPhone Blue (26.4) (DEVICE-UDID-1)
+
+        == Devices Offline ==
+        Mac mini (MAC-UDID-OFFLINE)
+
+        == Simulators ==
+        iPhone Air Simulator (26.5) (SIM-UDID-1)
+        """
+
+        let records = SimulatorDeviceJSONParser.parseMacs(
+            from: output,
+            osVersion: "15.5"
+        )
+
+        #expect(records == [
+            DestinationRecord(
+                kind: .macOS,
+                udid: "MAC-UDID-1",
+                name: "MacBook Pro",
+                runtime: "macOS 15.5",
+                state: .available,
+                stateDescription: "Available"
+            ),
+        ])
+    }
 }

@@ -4,17 +4,20 @@ public struct HistorySnapshot: Codable, Equatable, Sendable {
     public let schemaVersion: Int
     public var lastSimulator: HistoryEntry?
     public var lastDevice: HistoryEntry?
+    public var lastMac: HistoryEntry?
     public var lastAny: HistoryEntry?
 
     public init(
         schemaVersion: Int = 1,
         lastSimulator: HistoryEntry? = nil,
         lastDevice: HistoryEntry? = nil,
+        lastMac: HistoryEntry? = nil,
         lastAny: HistoryEntry? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.lastSimulator = lastSimulator
         self.lastDevice = lastDevice
+        self.lastMac = lastMac
         self.lastAny = lastAny
     }
 
@@ -32,6 +35,8 @@ public struct HistorySnapshot: Codable, Equatable, Sendable {
             lastSimulator = entry
         case .device:
             lastDevice = entry
+        case .macOS:
+            lastMac = entry
         }
 
         lastAny = entry
@@ -43,12 +48,14 @@ public struct HistorySnapshot: Codable, Equatable, Sendable {
             return lastSimulator
         case .device:
             return lastDevice
+        case .macOS:
+            return lastMac
         case .all:
             if let lastAny {
                 return lastAny
             }
 
-            return [lastSimulator, lastDevice]
+            return [lastSimulator, lastDevice, lastMac]
                 .compactMap { $0 }
                 .max { $0.selectedAt < $1.selectedAt }
         }

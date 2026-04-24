@@ -29,8 +29,10 @@ struct DestinationPickerViewModelTests {
                 scope: SelectionScope.explicit("workspace"),
                 simulatorRecords: [simulator],
                 deviceRecords: [device],
+                macRecords: [],
                 simulatorErrorMessage: nil,
                 deviceErrorMessage: nil,
+                macErrorMessage: nil,
                 lastSimulatorEntry: HistoryEntry(
                     kind: .simulator,
                     udid: "SIM-1",
@@ -38,7 +40,8 @@ struct DestinationPickerViewModelTests {
                     runtime: simulator.runtime,
                     selectedAt: Date(timeIntervalSince1970: 10)
                 ),
-                lastDeviceEntry: nil
+                lastDeviceEntry: nil,
+                lastMacEntry: nil
             )
         )
 
@@ -62,10 +65,13 @@ struct DestinationPickerViewModelTests {
                 scope: SelectionScope.explicit("workspace"),
                 simulatorRecords: [simulator],
                 deviceRecords: [],
+                macRecords: [],
                 simulatorErrorMessage: nil,
                 deviceErrorMessage: nil,
+                macErrorMessage: nil,
                 lastSimulatorEntry: nil,
-                lastDeviceEntry: nil
+                lastDeviceEntry: nil,
+                lastMacEntry: nil
             )
         )
 

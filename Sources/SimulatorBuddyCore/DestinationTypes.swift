@@ -3,6 +3,7 @@ import Foundation
 public enum DestinationKind: String, Codable, CaseIterable, Sendable {
     case simulator
     case device
+    case macOS = "macos"
 
     public var displayName: String {
         switch self {
@@ -10,6 +11,8 @@ public enum DestinationKind: String, Codable, CaseIterable, Sendable {
             return "Simulator"
         case .device:
             return "Device"
+        case .macOS:
+            return "Mac"
         }
     }
 }
@@ -17,6 +20,7 @@ public enum DestinationKind: String, Codable, CaseIterable, Sendable {
 public enum DestinationQueryType: String, Codable, CaseIterable, Sendable {
     case simulator
     case device
+    case macOS = "macos"
     case all
 
     public var kinds: [DestinationKind] {
@@ -25,6 +29,8 @@ public enum DestinationQueryType: String, Codable, CaseIterable, Sendable {
             return [.simulator]
         case .device:
             return [.device]
+        case .macOS:
+            return [.macOS]
         case .all:
             return DestinationKind.allCases
         }

@@ -4,21 +4,27 @@ public struct DestinationCacheSnapshot: Codable, Equatable, Sendable {
     public let schemaVersion: Int
     public var simulators: [DestinationRecord]
     public var devices: [DestinationRecord]
+    public var macs: [DestinationRecord]
     public var simulatorFetchedAt: Date?
     public var deviceFetchedAt: Date?
+    public var macFetchedAt: Date?
 
     public init(
         schemaVersion: Int = 1,
         simulators: [DestinationRecord] = [],
         devices: [DestinationRecord] = [],
+        macs: [DestinationRecord] = [],
         simulatorFetchedAt: Date? = nil,
-        deviceFetchedAt: Date? = nil
+        deviceFetchedAt: Date? = nil,
+        macFetchedAt: Date? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.simulators = simulators
         self.devices = devices
+        self.macs = macs
         self.simulatorFetchedAt = simulatorFetchedAt
         self.deviceFetchedAt = deviceFetchedAt
+        self.macFetchedAt = macFetchedAt
     }
 
     public func records(for queryType: DestinationQueryType) -> [DestinationRecord] {
@@ -27,8 +33,10 @@ public struct DestinationCacheSnapshot: Codable, Equatable, Sendable {
             return simulators
         case .device:
             return devices
+        case .macOS:
+            return macs
         case .all:
-            return simulators + devices
+            return simulators + devices + macs
         }
     }
 
@@ -38,6 +46,8 @@ public struct DestinationCacheSnapshot: Codable, Equatable, Sendable {
             return simulatorFetchedAt
         case .device:
             return deviceFetchedAt
+        case .macOS:
+            return macFetchedAt
         }
     }
 
@@ -53,7 +63,31 @@ public struct DestinationCacheSnapshot: Codable, Equatable, Sendable {
         case .device:
             devices = records
             deviceFetchedAt = fetchedAt
+        case .macOS:
+            macs = records
+            macFetchedAt = fetchedAt
         }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case simulators
+        case devices
+        case macs
+        case simulatorFetchedAt
+        case deviceFetchedAt
+        case macFetchedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        simulators = try container.decodeIfPresent([DestinationRecord].self, forKey: .simulators) ?? []
+        devices = try container.decodeIfPresent([DestinationRecord].self, forKey: .devices) ?? []
+        macs = try container.decodeIfPresent([DestinationRecord].self, forKey: .macs) ?? []
+        simulatorFetchedAt = try container.decodeIfPresent(Date.self, forKey: .simulatorFetchedAt)
+        deviceFetchedAt = try container.decodeIfPresent(Date.self, forKey: .deviceFetchedAt)
+        macFetchedAt = try container.decodeIfPresent(Date.self, forKey: .macFetchedAt)
     }
 }
 

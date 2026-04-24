@@ -72,6 +72,36 @@ struct CLIApplicationTests {
     }
 
     @Test
+    func list_macos_outputsMacDestinations() async throws {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let record = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "MacBook Pro",
+            runtime: "macOS 15.5",
+            state: .available,
+            stateDescription: "Available"
+        )
+
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [], devices: [], macs: [record]),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))),
+            pickerPresenter: StubPickerPresenter(result: .success(record)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(arguments: ["list", "--type", "macos", "--format", "json"])
+
+        #expect(exitCode == 0)
+        #expect(stderr.snapshot().isEmpty)
+        #expect(stdout.snapshot().joined().contains("\"kind\" : \"macos\""))
+        #expect(stdout.snapshot().joined().contains("\"udid\" : \"MAC-UDID-1\""))
+    }
+
+    @Test
     func select_cancel_returnsExitCode130() async {
         let stdout = OutputRecorder()
         let stderr = OutputRecorder()

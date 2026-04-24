@@ -21,6 +21,14 @@ struct DestinationSelectionLoaderTests {
             state: .connected,
             stateDescription: "Connected"
         )
+        let mac = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-1",
+            name: "MacBook Pro",
+            runtime: "macOS 15.5",
+            state: .available,
+            stateDescription: "Available"
+        )
 
         let cacheStore = InMemoryCacheStore()
         let historyStore = StubHistoryProvider(
@@ -37,10 +45,17 @@ struct DestinationSelectionLoaderTests {
                 name: "iPhone Blue",
                 runtime: "iOS 26.4",
                 selectedAt: Date(timeIntervalSince1970: 20)
+            ),
+            macEntry: HistoryEntry(
+                kind: .macOS,
+                udid: "MAC-1",
+                name: "MacBook Pro",
+                runtime: "macOS 15.5",
+                selectedAt: Date(timeIntervalSince1970: 30)
             )
         )
         let loader = DestinationSelectionLoader(
-            fetcher: StaticDestinationFetcher(simulators: [simulator], devices: [device]),
+            fetcher: StaticDestinationFetcher(simulators: [simulator], devices: [device], macs: [mac]),
             cacheStore: cacheStore,
             historyStore: historyStore,
             now: { Date(timeIntervalSince1970: 123) }
@@ -54,9 +69,12 @@ struct DestinationSelectionLoaderTests {
 
         #expect(loaded.simulatorRecords == [simulator])
         #expect(loaded.deviceRecords == [device])
+        #expect(loaded.macRecords == [mac])
         #expect(loaded.lastSimulatorEntry?.udid == "SIM-1")
         #expect(loaded.lastDeviceEntry?.udid == "DEVICE-1")
+        #expect(loaded.lastMacEntry?.udid == "MAC-1")
         #expect(cache.simulators == [simulator])
         #expect(cache.devices == [device])
+        #expect(cache.macs == [mac])
     }
 }

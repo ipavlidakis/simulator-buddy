@@ -3,6 +3,7 @@ import Foundation
 public protocol DestinationFetching: Sendable {
     func fetchSimulators() async throws -> [DestinationRecord]
     func fetchDevices() async throws -> [DestinationRecord]
+    func fetchMacs() async throws -> [DestinationRecord]
 }
 
 public enum SimulatorDeviceJSONParser {
@@ -59,6 +60,41 @@ public enum SimulatorDeviceJSONParser {
         .sorted(by: sortRecords)
     }
 
+    public static func parseMacs(from output: String, osVersion: String) -> [DestinationRecord] {
+        var isInDevicesSection = false
+
+        return output
+            .components(separatedBy: .newlines)
+            .compactMap { rawLine -> DestinationRecord? in
+                let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard line.isEmpty == false else {
+                    return nil
+                }
+
+                if line.hasPrefix("== ") {
+                    isInDevicesSection = line == "== Devices =="
+                    return nil
+                }
+
+                guard isInDevicesSection,
+                      let parsed = parseXctraceDeviceLine(line),
+                      isSupportedMacName(parsed.name) else {
+                    return nil
+                }
+
+                return DestinationRecord(
+                    kind: .macOS,
+                    udid: parsed.udid,
+                    name: parsed.name,
+                    runtime: macOSRuntimeLabel(osVersion: osVersion, fallbackVersion: parsed.version),
+                    state: .available,
+                    stateDescription: "Available"
+                )
+            }
+            .sorted(by: sortRecords)
+    }
+
     private static func isSupportedSimulator(_ device: SimctlDevice) -> Bool {
         guard device.isAvailable ?? true else {
             return false
@@ -74,6 +110,10 @@ public enum SimulatorDeviceJSONParser {
         default:
             return false
         }
+    }
+
+    private static func isSupportedMacName(_ name: String) -> Bool {
+        name.localizedCaseInsensitiveContains("mac")
     }
 
     private static func simulatorState(from rawValue: String) -> DestinationState {
@@ -161,6 +201,46 @@ public enum SimulatorDeviceJSONParser {
         return "\(platform) \(version)"
     }
 
+    private static func macOSRuntimeLabel(osVersion: String, fallbackVersion: String?) -> String {
+        let version = osVersion.isEmpty ? fallbackVersion : osVersion
+        guard let version, version.isEmpty == false else {
+            return "macOS"
+        }
+
+        return "macOS \(version)"
+    }
+
+    private static func parseXctraceDeviceLine(_ line: String) -> (name: String, version: String?, udid: String)? {
+        guard line.last == ")",
+              let udidStart = line.lastIndex(of: "(") else {
+            return nil
+        }
+
+        let udidStartIndex = line.index(after: udidStart)
+        let udidEndIndex = line.index(before: line.endIndex)
+        let udid = String(line[udidStartIndex..<udidEndIndex])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var prefix = String(line[..<udidStart])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard udid.isEmpty == false, prefix.isEmpty == false else {
+            return nil
+        }
+
+        var version: String?
+        if prefix.last == ")",
+           let versionStart = prefix.lastIndex(of: "(") {
+            let versionStartIndex = prefix.index(after: versionStart)
+            let versionEndIndex = prefix.index(before: prefix.endIndex)
+            version = String(prefix[versionStartIndex..<versionEndIndex])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            prefix = String(prefix[..<versionStart])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return (name: prefix, version: version, udid: udid)
+    }
+
     private static func sortRecords(_ lhs: DestinationRecord, _ rhs: DestinationRecord) -> Bool {
         lhs.sortKey < rhs.sortKey
     }
@@ -245,6 +325,39 @@ public final class SystemDestinationFetcher: DestinationFetching, @unchecked Sen
 
         let data = try Data(contentsOf: outputURL)
         return try SimulatorDeviceJSONParser.parseDevices(from: data)
+    }
+
+    public func fetchMacs() async throws -> [DestinationRecord] {
+        let result = try await runner.run(
+            Command(
+                executable: "xcrun",
+                arguments: [
+                    "xctrace",
+                    "list",
+                    "devices",
+                ]
+            )
+        )
+
+        guard result.terminationStatus == 0 else {
+            throw SimulatorBuddyError.commandFailed(
+                result.stderr.isEmpty ? "xctrace list devices failed." : result.stderr
+            )
+        }
+
+        return SimulatorDeviceJSONParser.parseMacs(
+            from: result.stdout,
+            osVersion: Self.currentOperatingSystemVersion()
+        )
+    }
+
+    private static func currentOperatingSystemVersion() -> String {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        if version.patchVersion > 0 {
+            return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+        }
+
+        return "\(version.majorVersion).\(version.minorVersion)"
     }
 }
 

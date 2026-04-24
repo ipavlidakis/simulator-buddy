@@ -125,10 +125,13 @@ public final class CLIApplication: @unchecked Sendable {
             return try await fetcher.fetchSimulators()
         case .device:
             return try await fetcher.fetchDevices()
+        case .macOS:
+            return try await fetcher.fetchMacs()
         case .all:
             async let simulators = fetcher.fetchSimulators()
             async let devices = fetcher.fetchDevices()
-            return try await (simulators + devices)
+            async let macs = fetcher.fetchMacs()
+            return try await (simulators + devices + macs)
                 .sorted { lhs, rhs in
                     if lhs.kind != rhs.kind {
                         return lhs.kind.rawValue < rhs.kind.rawValue
@@ -278,8 +281,8 @@ public final class CLIApplication: @unchecked Sendable {
 
     static let usage = """
     Usage:
-      simulator-buddy list [--type simulator|device|all] [--format table|json]
-      simulator-buddy last [--type simulator|device|all] [--scope <key>] [--format udid|json]
-      simulator-buddy select [--type simulator|device|all] [--scope <key>] [--format udid|json]
+      simulator-buddy list [--type simulator|device|macos|all] [--format table|json]
+      simulator-buddy last [--type simulator|device|macos|all] [--scope <key>] [--format udid|json]
+      simulator-buddy select [--type simulator|device|macos|all] [--scope <key>] [--format udid|json]
     """
 }

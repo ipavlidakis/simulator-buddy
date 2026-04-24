@@ -1,6 +1,6 @@
 # Simulator Buddy
 
-`simulator-buddy` is a macOS CLI for selecting iOS simulators and physical devices without falling back to terminal menus. It is designed for tools like Codex actions that need a real UDID back on stdout and want a native picker window instead of an in-terminal `select` flow.
+`simulator-buddy` is a macOS CLI for selecting iOS simulators, physical devices, and local Mac destinations without falling back to terminal menus. It is designed for tools like Codex actions that need a real UDID back on stdout and want a native picker window instead of an in-terminal `select` flow.
 
 ## Install
 
@@ -37,6 +37,7 @@ List destinations:
 ```bash
 simulator-buddy list --type all --format table
 simulator-buddy list --type simulator --format json
+simulator-buddy list --type macos --format json
 ```
 
 Resolve the last used destination:
@@ -51,6 +52,7 @@ Open the native picker and print the selected UDID:
 ```bash
 simulator-buddy select --type all
 simulator-buddy select --type device --scope my-workspace
+simulator-buddy select --type macos --scope my-workspace
 simulator-buddy select --type simulator --format json
 ```
 
@@ -68,7 +70,8 @@ simulator-buddy select --type simulator --format json
 
 - Simulators are loaded from `xcrun simctl list devices available -j --json-output <file>`.
 - Physical devices are loaded from `xcrun devicectl list devices --json-output <file>`.
-- Only iPhone and iPad simulators/devices are included in v1.
+- Mac destinations are loaded from the available `Devices` section of `xcrun xctrace list devices`.
+- Only iPhone and iPad simulators/devices and available Mac destinations are included in v1.
 - The picker warm-starts from a cached destination list, labels the UI as cached/refreshing, and then validates selections against fresh live data before returning a result.
 - A cached-only selection is never returned if the refresh later removes the destination or the refresh fails.
 
@@ -90,6 +93,7 @@ The history tracks:
 
 - last simulator
 - last physical device
+- last Mac
 - last destination overall
 
 The cache stores only normalized destination metadata and fetch timestamps.

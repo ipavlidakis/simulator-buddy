@@ -138,6 +138,20 @@ private struct PickerRootView: View {
                         }
                     }
                 }
+
+                if viewModel.queryType.includes(.macOS) {
+                    Section("Macs") {
+                        if let macErrorMessage = viewModel.macErrorMessage,
+                           viewModel.displayedMacs.isEmpty {
+                            statusRow(text: macErrorMessage)
+                        }
+
+                        ForEach(viewModel.displayedMacs) { record in
+                            destinationRow(for: record)
+                                .tag(record.udid)
+                        }
+                    }
+                }
             }
             .onSubmit {
                 viewModel.chooseSelected()

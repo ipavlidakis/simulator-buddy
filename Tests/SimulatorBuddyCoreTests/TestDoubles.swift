@@ -25,15 +25,18 @@ actor InMemoryCacheStore: DestinationCacheStoring {
 actor StubHistoryProvider: HistoryProviding {
     var simulatorEntry: HistoryEntry?
     var deviceEntry: HistoryEntry?
+    var macEntry: HistoryEntry?
     var allEntry: HistoryEntry?
 
     init(
         simulatorEntry: HistoryEntry? = nil,
         deviceEntry: HistoryEntry? = nil,
+        macEntry: HistoryEntry? = nil,
         allEntry: HistoryEntry? = nil
     ) {
         self.simulatorEntry = simulatorEntry
         self.deviceEntry = deviceEntry
+        self.macEntry = macEntry
         self.allEntry = allEntry
     }
 
@@ -43,8 +46,10 @@ actor StubHistoryProvider: HistoryProviding {
             return simulatorEntry
         case .device:
             return deviceEntry
+        case .macOS:
+            return macEntry
         case .all:
-            return allEntry ?? simulatorEntry ?? deviceEntry
+            return allEntry ?? simulatorEntry ?? deviceEntry ?? macEntry
         }
     }
 }
@@ -52,10 +57,12 @@ actor StubHistoryProvider: HistoryProviding {
 actor StaticDestinationFetcher: DestinationFetching {
     let simulators: [DestinationRecord]
     let devices: [DestinationRecord]
+    let macs: [DestinationRecord]
 
-    init(simulators: [DestinationRecord], devices: [DestinationRecord]) {
+    init(simulators: [DestinationRecord], devices: [DestinationRecord], macs: [DestinationRecord] = []) {
         self.simulators = simulators
         self.devices = devices
+        self.macs = macs
     }
 
     func fetchSimulators() async throws -> [DestinationRecord] {
@@ -65,14 +72,20 @@ actor StaticDestinationFetcher: DestinationFetching {
     func fetchDevices() async throws -> [DestinationRecord] {
         devices
     }
+
+    func fetchMacs() async throws -> [DestinationRecord] {
+        macs
+    }
 }
 
 actor ContinuationDestinationFetcher: DestinationFetching {
     private var simulatorContinuation: CheckedContinuation<[DestinationRecord], Error>?
     private let devices: [DestinationRecord]
+    private let macs: [DestinationRecord]
 
-    init(devices: [DestinationRecord] = []) {
+    init(devices: [DestinationRecord] = [], macs: [DestinationRecord] = []) {
         self.devices = devices
+        self.macs = macs
     }
 
     func fetchSimulators() async throws -> [DestinationRecord] {
@@ -83,6 +96,10 @@ actor ContinuationDestinationFetcher: DestinationFetching {
 
     func fetchDevices() async throws -> [DestinationRecord] {
         devices
+    }
+
+    func fetchMacs() async throws -> [DestinationRecord] {
+        macs
     }
 
     func resumeSimulators(with result: Result<[DestinationRecord], Error>) {

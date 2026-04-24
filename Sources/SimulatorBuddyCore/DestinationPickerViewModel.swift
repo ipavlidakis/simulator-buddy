@@ -24,14 +24,17 @@ public final class DestinationPickerViewModel: ObservableObject {
     @Published public var selectedUDID: String?
     @Published public private(set) var simulatorRecords: [DestinationRecord]
     @Published public private(set) var deviceRecords: [DestinationRecord]
+    @Published public private(set) var macRecords: [DestinationRecord]
     @Published public private(set) var simulatorErrorMessage: String?
     @Published public private(set) var deviceErrorMessage: String?
+    @Published public private(set) var macErrorMessage: String?
     @Published public private(set) var errorMessage: String?
 
     public var onResolve: (@MainActor (Result<DestinationRecord, DestinationPickerFailure>) -> Void)?
 
     private let lastSimulatorEntry: HistoryEntry?
     private let lastDeviceEntry: HistoryEntry?
+    private let lastMacEntry: HistoryEntry?
     private var hasResolved = false
 
     public init(loadedSelection: LoadedDestinationSelection) {
@@ -39,10 +42,13 @@ public final class DestinationPickerViewModel: ObservableObject {
         scope = loadedSelection.scope
         simulatorRecords = loadedSelection.simulatorRecords
         deviceRecords = loadedSelection.deviceRecords
+        macRecords = loadedSelection.macRecords
         simulatorErrorMessage = loadedSelection.simulatorErrorMessage
         deviceErrorMessage = loadedSelection.deviceErrorMessage
+        macErrorMessage = loadedSelection.macErrorMessage
         lastSimulatorEntry = loadedSelection.lastSimulatorEntry
         lastDeviceEntry = loadedSelection.lastDeviceEntry
+        lastMacEntry = loadedSelection.lastMacEntry
 
         if let lastSimulatorEntry,
            simulatorRecords.contains(where: { $0.udid == lastSimulatorEntry.udid }) {
@@ -50,8 +56,11 @@ public final class DestinationPickerViewModel: ObservableObject {
         } else if let lastDeviceEntry,
                   deviceRecords.contains(where: { $0.udid == lastDeviceEntry.udid }) {
             selectedUDID = lastDeviceEntry.udid
+        } else if let lastMacEntry,
+                  macRecords.contains(where: { $0.udid == lastMacEntry.udid }) {
+            selectedUDID = lastMacEntry.udid
         } else {
-            selectedUDID = (simulatorRecords + deviceRecords).first?.udid
+            selectedUDID = (simulatorRecords + deviceRecords + macRecords).first?.udid
         }
     }
 
@@ -63,8 +72,12 @@ public final class DestinationPickerViewModel: ObservableObject {
         displayedRecords(for: .device)
     }
 
+    public var displayedMacs: [DestinationRecord] {
+        displayedRecords(for: .macOS)
+    }
+
     public var hasAnyRecords: Bool {
-        simulatorRecords.isEmpty == false || deviceRecords.isEmpty == false
+        simulatorRecords.isEmpty == false || deviceRecords.isEmpty == false || macRecords.isEmpty == false
     }
 
     public func chooseSelected() {
@@ -85,7 +98,7 @@ public final class DestinationPickerViewModel: ObservableObject {
             return nil
         }
 
-        return (displayedSimulators + displayedDevices).first { $0.udid == udid }
+        return (displayedSimulators + displayedDevices + displayedMacs).first { $0.udid == udid }
     }
 
     public func isPinned(_ record: DestinationRecord) -> Bool {
@@ -94,6 +107,8 @@ public final class DestinationPickerViewModel: ObservableObject {
             return lastSimulatorEntry?.udid == record.udid
         case .device:
             return lastDeviceEntry?.udid == record.udid
+        case .macOS:
+            return lastMacEntry?.udid == record.udid
         }
     }
 
@@ -115,6 +130,8 @@ public final class DestinationPickerViewModel: ObservableObject {
             pinnedUDID = lastSimulatorEntry?.udid
         case .device:
             pinnedUDID = lastDeviceEntry?.udid
+        case .macOS:
+            pinnedUDID = lastMacEntry?.udid
         }
 
         return filtered.sorted { lhs, rhs in
@@ -135,6 +152,8 @@ public final class DestinationPickerViewModel: ObservableObject {
             return simulatorRecords
         case .device:
             return deviceRecords
+        case .macOS:
+            return macRecords
         }
     }
 }

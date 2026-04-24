@@ -53,6 +53,12 @@ command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" &&
 platform = "darwin"
 
 [[actions]]
+name = "Select Mac"
+icon = "run"
+command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy select --type macos'"
+platform = "darwin"
+
+[[actions]]
 name = "Select Any Destination"
 icon = "run"
 command = "zsh -lc 'repo_root=\"$PWD\"; if [[ -f \"$repo_root/Package.swift\" && -d \"$repo_root/Sources/SimulatorBuddyCore\" ]]; then :; elif [[ -f \"$repo_root/simulator-buddy/Package.swift\" && -d \"$repo_root/simulator-buddy/Sources/SimulatorBuddyCore\" ]]; then repo_root=\"$repo_root/simulator-buddy\"; else echo \"simulator-buddy repo root not found from $PWD\" >&2; exit 1; fi; cd \"$repo_root\"; swift run simulator-buddy select --type all'"
