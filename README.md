@@ -145,3 +145,7 @@ The Homebrew formula source is rendered from version + checksum metadata:
 ```
 
 The output is intended to be committed in the companion tap repo.
+
+The manual `release` workflow accepts an optional `changelog` input. When it is
+provided, that text becomes the GitHub release notes; otherwise new releases use
+generated notes.

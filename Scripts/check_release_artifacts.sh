@@ -25,6 +25,16 @@ grep -q 'simulator-buddy-x86_64-apple-darwin.tar.gz' <<<"${formula}"
 grep -q 'bin.install "simulator-buddy"' <<<"${formula}"
 printf '%s\n' "${formula}" > "${TMP_DIR}/simulator-buddy.rb"
 
+release_notes="${TMP_DIR}/release-notes.md"
+"${SCRIPT_DIR}/write_release_notes.sh" \
+  --output-path "${release_notes}" \
+  --notes $'Added simulator selection.\nFixed release packaging.'
+cmp -s "${release_notes}" <(printf 'Added simulator selection.\nFixed release packaging.\n')
+
+"${SCRIPT_DIR}/write_release_notes.sh" \
+  --output-path "${release_notes}"
+[[ ! -f "${release_notes}" ]]
+
 tap_repo="$(mktemp -d)/tap.git"
 (
   git init --bare "${tap_repo}" >/dev/null
