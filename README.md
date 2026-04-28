@@ -56,6 +56,21 @@ simulator-buddy select --type macos --scope my-workspace
 simulator-buddy select --type simulator --format json
 ```
 
+Write LLDB attach commands for a selected destination:
+
+```bash
+simulator-buddy debug \
+  --type all \
+  --process-name Vesputio \
+  --lldb-command-file /tmp/vesputio-attach.lldb
+```
+
+Attach with LLDB:
+
+```bash
+lldb -s /tmp/vesputio-attach.lldb
+```
+
 `--type` defaults to `all` when omitted.
 
 ## Output Contract
@@ -64,7 +79,14 @@ simulator-buddy select --type simulator --format json
 - `list --format json` prints an array of normalized destination records.
 - `last` prints the selected UDID by default, or a JSON selection payload with `--format json`.
 - `select` prints the selected UDID by default, or a JSON selection payload with `--format json`.
-- `select` exits `130` when the picker is cancelled.
+- `debug` records the selected destination, writes an LLDB command file, and prints a JSON payload with `destination`, `scope`, `selectedAt`, and `lldbCommandFile`.
+- `select` and `debug` exit `130` when the picker is cancelled.
+
+The generated LLDB command file uses:
+
+- `platform select ios-simulator` and `process attach` for simulators.
+- `device select <udid>` and `device process attach` for physical devices.
+- `process attach` for local Mac destinations.
 
 ## How Selection Works
 
@@ -122,6 +144,21 @@ xcodebuild \
   -scheme MyApp \
   -destination "id=${DESTINATION_ID}" \
   build
+"""
+```
+
+Debug a process on a chosen destination:
+
+```toml
+[[actions]]
+name = "Debug App On Chosen Destination"
+icon = "bug"
+command = """
+simulator-buddy debug \
+  --type all \
+  --process-name MyApp \
+  --lldb-command-file /tmp/myapp-attach.lldb
+lldb -s /tmp/myapp-attach.lldb
 """
 ```
 

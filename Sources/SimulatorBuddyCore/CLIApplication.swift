@@ -54,6 +54,14 @@ public final class CLIApplication: @unchecked Sendable {
             case let .select(type, scope, format):
                 try await runSelect(type: type, scope: scope, format: format)
                 return 0
+            case let .debug(type, scope, processName, lldbCommandFile):
+                try await runDebug(
+                    type: type,
+                    scope: scope,
+                    processName: processName,
+                    lldbCommandFile: lldbCommandFile
+                )
+                return 0
             }
         } catch let failure as DestinationPickerFailure {
             switch failure {
@@ -117,6 +125,68 @@ public final class CLIApplication: @unchecked Sendable {
         let selection = ResolvedSelection(destination: record, scope: scope, selectedAt: now())
         try await historyStore.record(selection: selection)
         try output(selection: selection, format: format)
+    }
+
+    private func runDebug(
+        type: DestinationQueryType,
+        scope: SelectionScope,
+        processName: String,
+        lldbCommandFile: String
+    ) async throws {
+        let record = try await pickerPresenter.present(queryType: type, scope: scope)
+        let selectedAt = now()
+        let selection = ResolvedSelection(destination: record, scope: scope, selectedAt: selectedAt)
+        try await historyStore.record(selection: selection)
+
+        let commandFileURL = URL(fileURLWithPath: lldbCommandFile)
+        try FileManager.default.createDirectory(
+            at: commandFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let commands = lldbAttachCommands(for: record, processName: processName)
+            .joined(separator: "\n") + "\n"
+        try commands.write(to: commandFileURL, atomically: true, encoding: .utf8)
+
+        standardOutput(
+            try encodeJSON(
+                DebugConnection(
+                    destination: record,
+                    scope: scope,
+                    selectedAt: selectedAt,
+                    lldbCommandFile: commandFileURL.path
+                )
+            )
+        )
+    }
+
+    private func lldbAttachCommands(
+        for destination: DestinationRecord,
+        processName: String
+    ) -> [String] {
+        switch destination.kind {
+        case .simulator:
+            return [
+                "platform select ios-simulator",
+                "process attach --name \(lldbQuoted(processName)) --waitfor --include-existing",
+            ]
+        case .device:
+            return [
+                "device select \(destination.udid)",
+                "device process attach --name \(lldbQuoted(processName)) --waitfor --include-existing",
+            ]
+        case .macOS:
+            return [
+                "process attach --name \(lldbQuoted(processName)) --waitfor --include-existing",
+            ]
+        }
+    }
+
+    private func lldbQuoted(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 
     private func fetchRecords(for type: DestinationQueryType) async throws -> [DestinationRecord] {
@@ -203,6 +273,8 @@ public final class CLIApplication: @unchecked Sendable {
         var type: DestinationQueryType?
         var format: SelectOutputFormat?
         var scope: SelectionScope?
+        var processName: String?
+        var lldbCommandFile: String?
         var index = 1
 
         while index < arguments.count {
@@ -216,6 +288,12 @@ public final class CLIApplication: @unchecked Sendable {
             case "--scope":
                 index += 1
                 scope = SelectionScope.explicit(try parseValue(arguments, index: index, option: "--scope"))
+            case "--process-name":
+                index += 1
+                processName = try parseValue(arguments, index: index, option: "--process-name")
+            case "--lldb-command-file":
+                index += 1
+                lldbCommandFile = try parseValue(arguments, index: index, option: "--lldb-command-file")
             case "--help", "-h":
                 return .help
             default:
@@ -235,6 +313,19 @@ public final class CLIApplication: @unchecked Sendable {
             return .last(type: resolvedType, scope: resolvedScope, format: format ?? .udid)
         case "select":
             return .select(type: resolvedType, scope: resolvedScope, format: format ?? .udid)
+        case "debug":
+            guard let processName, processName.isEmpty == false else {
+                throw SimulatorBuddyError.usage("Missing value for --process-name")
+            }
+            guard let lldbCommandFile, lldbCommandFile.isEmpty == false else {
+                throw SimulatorBuddyError.usage("Missing value for --lldb-command-file")
+            }
+            return .debug(
+                type: resolvedType,
+                scope: resolvedScope,
+                processName: processName,
+                lldbCommandFile: lldbCommandFile
+            )
         default:
             throw SimulatorBuddyError.usage("Unknown command: \(commandName)")
         }
@@ -271,6 +362,19 @@ public final class CLIApplication: @unchecked Sendable {
         case list(type: DestinationQueryType, format: SelectOutputFormat)
         case last(type: DestinationQueryType, scope: SelectionScope, format: SelectOutputFormat)
         case select(type: DestinationQueryType, scope: SelectionScope, format: SelectOutputFormat)
+        case debug(
+            type: DestinationQueryType,
+            scope: SelectionScope,
+            processName: String,
+            lldbCommandFile: String
+        )
+    }
+
+    private struct DebugConnection: Encodable {
+        let destination: DestinationRecord
+        let scope: SelectionScope?
+        let selectedAt: Date
+        let lldbCommandFile: String
     }
 
     private enum SelectOutputFormat: String {
@@ -284,5 +388,6 @@ public final class CLIApplication: @unchecked Sendable {
       simulator-buddy list [--type simulator|device|macos|all] [--format table|json]
       simulator-buddy last [--type simulator|device|macos|all] [--scope <key>] [--format udid|json]
       simulator-buddy select [--type simulator|device|macos|all] [--scope <key>] [--format udid|json]
+      simulator-buddy debug --process-name <name> --lldb-command-file <path> [--type simulator|device|macos|all] [--scope <key>]
     """
 }
