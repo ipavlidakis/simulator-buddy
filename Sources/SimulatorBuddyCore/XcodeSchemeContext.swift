@@ -2,15 +2,14 @@ import Foundation
 
 /// Identifies an Xcode project or workspace plus scheme for resolving run destinations.
 public struct XcodeSchemeContext: Sendable, Equatable {
-    public enum Root: Sendable, Equatable {
-        case project(URL)
-        case workspace(URL)
-    }
+    /// Project or workspace containing the scheme.
+    public let root: XcodeSchemeRoot
 
-    public let root: Root
+    /// Xcode scheme used for `xcodebuild -showdestinations`.
     public let scheme: String
 
-    public init(root: Root, scheme: String) {
+    /// Creates a scheme context from the owning root and scheme name.
+    public init(root: XcodeSchemeRoot, scheme: String) {
         self.root = root
         self.scheme = scheme
     }

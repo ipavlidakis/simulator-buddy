@@ -1,0 +1,205 @@
+import Foundation
+import Testing
+@testable import SimulatorBuddyCore
+
+/// Tests for `list`, `last`, and `select` destination command behavior.
+struct DestinationCommandHandlerTests {
+    /// Verifies JSON list output contains live simulator destinations.
+    @Test
+    func list_json_outputsLiveDestinations() async throws {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let record = DestinationRecord(
+            kind: .simulator,
+            udid: "SIM-1",
+            name: "iPhone Air",
+            runtime: "iOS 26.5",
+            state: .booted,
+            stateDescription: "Booted"
+        )
+
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [record], devices: []),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: temporaryDirectory())),
+            pickerPresenter: StubPickerPresenter(result: .success(record)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(arguments: ["list", "--type", "simulator", "--format", "json"])
+
+        #expect(exitCode == 0)
+        #expect(stderr.snapshot().isEmpty)
+        #expect(stdout.snapshot().joined().contains("\"udid\" : \"SIM-1\""))
+    }
+
+    /// Verifies `last` resolves scoped history against currently available devices.
+    @Test
+    func last_udid_resolvesScopedHistoryAgainstLiveRecords() async throws {
+        let rootDirectory = temporaryDirectory()
+        let historyStore = HistoryStore(paths: AppPaths(rootDirectory: rootDirectory))
+        let scope = SelectionScope(explicit: "workspace")
+        let record = DestinationRecord(
+            kind: .device,
+            udid: "DEVICE-1",
+            name: "iPhone Blue",
+            runtime: "iOS 26.4",
+            state: .connected,
+            stateDescription: "Connected"
+        )
+
+        try await historyStore.record(
+            selection: ResolvedSelection(
+                destination: record,
+                scope: scope,
+                selectedAt: Date(timeIntervalSince1970: 100)
+            )
+        )
+
+        let stdout = OutputRecorder()
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [], devices: [record]),
+            historyStore: historyStore,
+            pickerPresenter: StubPickerPresenter(result: .success(record)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { _ in }
+        )
+
+        let exitCode = await app.run(arguments: ["last", "--type", "device", "--scope", "workspace"])
+
+        #expect(exitCode == 0)
+        #expect(stdout.snapshot() == ["DEVICE-1"])
+    }
+
+    /// Verifies Mac destinations can be listed through the generic Mac query.
+    @Test
+    func list_macos_outputsMacDestinations() async throws {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let record = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "MacBook Pro",
+            runtime: "macOS 15.5",
+            state: .available,
+            stateDescription: "Available"
+        )
+
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [], devices: [], macs: [record]),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: temporaryDirectory())),
+            pickerPresenter: StubPickerPresenter(result: .success(record)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(arguments: ["list", "--type", "macos", "--format", "json"])
+
+        #expect(exitCode == 0)
+        #expect(stderr.snapshot().isEmpty)
+        #expect(stdout.snapshot().joined().contains("\"kind\" : \"macos\""))
+        #expect(stdout.snapshot().joined().contains("\"udid\" : \"MAC-UDID-1\""))
+    }
+
+    /// Verifies Catalyst Mac query uses Xcode context and filters variant rows.
+    @Test
+    func list_macosCatalystWithXcodeFlags_filtersXcodeDestinations() async throws {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let ipadRecord = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "My Mac - Designed for [iPad,iPhone]",
+            runtime: "Designed for [iPad,iPhone]",
+            state: .available,
+            stateDescription: "Available",
+            macOSVariant: "Designed for [iPad,iPhone]",
+            xcodeDestinationSpecifier: "platform=macOS,variant=Designed for iPad,id=MAC-UDID-1"
+        )
+        let catalystRecord = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "My Mac - Mac Catalyst",
+            runtime: "Mac Catalyst",
+            state: .available,
+            stateDescription: "Available",
+            macOSVariant: "Mac Catalyst",
+            xcodeDestinationSpecifier: "platform=macOS,variant=Mac Catalyst,id=MAC-UDID-1"
+        )
+
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(
+                simulators: [],
+                devices: [],
+                macs: [ipadRecord, catalystRecord]
+            ),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: temporaryDirectory())),
+            pickerPresenter: StubPickerPresenter(result: .success(catalystRecord)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(
+            arguments: [
+                "list",
+                "--type", "macos-catalyst",
+                "--xcode-project", "/tmp/MyApp.xcodeproj",
+                "--xcode-scheme", "MyApp",
+                "--format", "json",
+            ]
+        )
+
+        let output = stdout.snapshot().joined()
+        #expect(exitCode == 0)
+        #expect(stderr.snapshot().isEmpty)
+        #expect(output.contains("Mac Catalyst"))
+        #expect(output.contains("platform=macOS,variant=Mac Catalyst,id=MAC-UDID-1"))
+        #expect(output.contains("Designed for [iPad,iPhone]") == false)
+    }
+
+    /// Verifies Mac variant queries without Xcode context fail with usage text.
+    @Test
+    func list_macosVariantWithoutXcodeFlags_failsWithUsage() async {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [], devices: []),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: temporaryDirectory())),
+            pickerPresenter: StubPickerPresenter(result: .failure(DestinationPickerFailure.cancelled)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(arguments: ["list", "--type", "macos-designed-for-ipad"])
+
+        #expect(exitCode == 1)
+        #expect(stdout.snapshot().isEmpty)
+        #expect(stderr.snapshot().joined().contains("--xcode-scheme"))
+    }
+
+    /// Verifies picker cancellation maps to shell exit code 130.
+    @Test
+    func select_cancel_returnsExitCode130() async {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [], devices: []),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: temporaryDirectory())),
+            pickerPresenter: StubPickerPresenter(result: .failure(DestinationPickerFailure.cancelled)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(arguments: ["select", "--type", "all"])
+
+        #expect(exitCode == 130)
+        #expect(stdout.snapshot().isEmpty)
+        #expect(stderr.snapshot().isEmpty)
+    }
+}

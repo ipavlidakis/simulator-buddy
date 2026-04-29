@@ -1,7 +1,12 @@
 import Foundation
 
-public enum GUISessionInspector {
-    public static func hasGUISession(sessionInfo: [AnyHashable: Any]) -> Bool {
+/// Checks whether CoreGraphics session metadata describes an interactive GUI session.
+public struct GUISessionInspector: Sendable {
+    /// Creates a stateless GUI session inspector.
+    public init() {}
+
+    /// Returns true when the session is currently attached to the console.
+    public func hasGUISession(sessionInfo: [AnyHashable: Any]) -> Bool {
         let value = sessionInfo["kCGSSessionOnConsoleKey"]
 
         switch value {
