@@ -40,6 +40,19 @@ simulator-buddy list --type simulator --format json
 simulator-buddy list --type macos --format json
 ```
 
+Mac run destinations for a specific Xcode scheme:
+
+```bash
+simulator-buddy list --type macos \
+  --xcode-project ./MyApp.xcodeproj --xcode-scheme MyApp --format json
+
+# Only "Mac Catalyst" or only "Designed for iPad/iPhone" rows for that scheme:
+simulator-buddy list --type macos-catalyst \
+  --xcode-project ./MyApp.xcodeproj --xcode-scheme MyApp --format json
+simulator-buddy list --type macos-designed-for-ipad \
+  --xcode-project ./MyApp.xcodeproj --xcode-scheme MyApp --format json
+```
+
 Resolve the last used destination:
 
 ```bash
@@ -53,6 +66,8 @@ Open the native picker and print the selected UDID:
 simulator-buddy select --type all
 simulator-buddy select --type device --scope my-workspace
 simulator-buddy select --type macos --scope my-workspace
+simulator-buddy select --type macos-designed-for-ipad \
+  --xcode-project ./MyApp.xcodeproj --xcode-scheme MyApp --format json
 simulator-buddy select --type simulator --format json
 ```
 
@@ -76,7 +91,7 @@ lldb -s /tmp/vesputio-attach.lldb
 ## Output Contract
 
 - `list --format table` prints a human-readable table.
-- `list --format json` prints an array of normalized destination records.
+- `list --format json` prints an array of normalized destination records. For Mac rows loaded via `--xcode-project` / `--xcode-workspace`, each record includes `macOSVariant` and `xcodeDestinationSpecifier` (suitable for `xcodebuild -destination`).
 - `last` prints the selected UDID by default, or a JSON selection payload with `--format json`.
 - `select` prints the selected UDID by default, or a JSON selection payload with `--format json`.
 - `debug` records the selected destination, writes an LLDB command file, and prints a JSON payload with `destination`, `scope`, `selectedAt`, and `lldbCommandFile`.
@@ -92,7 +107,7 @@ The generated LLDB command file uses:
 
 - Simulators are loaded from `xcrun simctl list devices available -j --json-output <file>`.
 - Physical devices are loaded from `xcrun devicectl list devices --json-output <file>`.
-- Mac destinations are loaded from the available `Devices` section of `xcrun xctrace list devices`.
+- Mac destinations with **no** Xcode flags are loaded from `xcrun xctrace list devices` (legacy). When you pass `--xcode-scheme` and `--xcode-project` or `--xcode-workspace`, Mac rows are loaded from `xcodebuild -showdestinations` for that scheme. That yields one entry per local Mac **variant** (for example **Mac Catalyst** vs **Designed for iPad/iPhone**), each with the correct `xcodeDestinationSpecifier` for `xcodebuild -destination`.
 - Only iPhone and iPad simulators/devices and available Mac destinations are included in v1.
 - The picker warm-starts from a cached destination list, labels the UI as cached/refreshing, and then validates selections against fresh live data before returning a result.
 - A cached-only selection is never returned if the refresh later removes the destination or the refresh fails.

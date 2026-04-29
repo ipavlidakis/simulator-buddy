@@ -4,6 +4,7 @@ public protocol DestinationFetching: Sendable {
     func fetchSimulators() async throws -> [DestinationRecord]
     func fetchDevices() async throws -> [DestinationRecord]
     func fetchMacs() async throws -> [DestinationRecord]
+    func fetchMacRunDestinationsFromXcode(context: XcodeSchemeContext) async throws -> [DestinationRecord]
 }
 
 public enum SimulatorDeviceJSONParser {
@@ -349,6 +350,31 @@ public final class SystemDestinationFetcher: DestinationFetching, @unchecked Sen
             from: result.stdout,
             osVersion: Self.currentOperatingSystemVersion()
         )
+    }
+
+    public func fetchMacRunDestinationsFromXcode(context: XcodeSchemeContext) async throws
+        -> [DestinationRecord]
+    {
+        var arguments = ["xcodebuild"]
+        switch context.root {
+        case let .project(url):
+            arguments.append(contentsOf: ["-project", url.path])
+        case let .workspace(url):
+            arguments.append(contentsOf: ["-workspace", url.path])
+        }
+        arguments.append(contentsOf: ["-scheme", context.scheme, "-showdestinations"])
+
+        let result = try await runner.run(
+            Command(executable: "xcrun", arguments: arguments)
+        )
+
+        guard result.terminationStatus == 0 else {
+            throw SimulatorBuddyError.commandFailed(
+                result.stderr.isEmpty ? "xcodebuild -showdestinations failed." : result.stderr
+            )
+        }
+
+        return XcodeShowDestinationsParser.parseMacOSRunDestinations(from: result.stdout)
     }
 
     private static func currentOperatingSystemVersion() -> String {

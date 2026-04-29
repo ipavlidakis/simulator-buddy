@@ -60,17 +60,30 @@ public final class DestinationSelectionLoader: @unchecked Sendable {
 
     public func load(
         queryType: DestinationQueryType,
-        scope: SelectionScope?
+        scope: SelectionScope?,
+        xcodeContext: XcodeSchemeContext?
     ) async throws -> LoadedDestinationSelection {
-        async let simulatorHistory = queryType.includes(.simulator)
-            ? historyStore.resolveLast(type: .simulator, scope: scope)
-            : nil
-        async let deviceHistory = queryType.includes(.device)
-            ? historyStore.resolveLast(type: .device, scope: scope)
-            : nil
-        async let macHistory = queryType.includes(.macOS)
-            ? historyStore.resolveLast(type: .macOS, scope: scope)
-            : nil
+        async let simulatorHistory: HistoryEntry? = {
+            guard queryType.includes(.simulator) else {
+                return nil
+            }
+            return try await historyStore.resolveLast(type: .simulator, scope: scope)
+        }()
+        async let deviceHistory: HistoryEntry? = {
+            guard queryType.includes(.device) else {
+                return nil
+            }
+            return try await historyStore.resolveLast(type: .device, scope: scope)
+        }()
+        async let macHistory: HistoryEntry? = {
+            guard queryType.includes(.macOS) else {
+                return nil
+            }
+            return try await historyStore.resolveLast(
+                type: macHistoryQueryType(for: queryType),
+                scope: scope
+            )
+        }()
 
         var simulatorRecords: [DestinationRecord] = []
         var deviceRecords: [DestinationRecord] = []
@@ -113,7 +126,27 @@ public final class DestinationSelectionLoader: @unchecked Sendable {
 
         if queryType.includes(.macOS) {
             do {
-                macRecords = try await fetcher.fetchMacs()
+                let variantFilter = queryType.macOSRecordsFilter
+                if let xcodeContext {
+                    let fromXcode = try await fetcher.fetchMacRunDestinationsFromXcode(
+                        context: xcodeContext
+                    )
+                    macRecords = variantFilter.filteredRecords(from: fromXcode)
+                    if variantFilter != .allVariants, macRecords.isEmpty {
+                        throw SimulatorBuddyError.noDestinations(queryType)
+                    }
+                } else {
+                    if variantFilter != .allVariants {
+                        throw SimulatorBuddyError.usage(
+                            """
+                            --type \(queryType.rawValue) requires --xcode-scheme and one of \
+                            --xcode-project or --xcode-workspace.
+                            """
+                        )
+                    }
+                    macRecords = try await fetcher.fetchMacs()
+                }
+
                 _ = try? await cacheStore.update(
                     kind: .macOS,
                     records: macRecords,
@@ -121,7 +154,7 @@ public final class DestinationSelectionLoader: @unchecked Sendable {
                 )
             } catch {
                 macErrorMessage = error.localizedDescription
-                if queryType == .macOS {
+                if isMacOnlyQuery(queryType) {
                     throw error
                 }
             }
@@ -144,5 +177,23 @@ public final class DestinationSelectionLoader: @unchecked Sendable {
             lastDeviceEntry: try await deviceHistory,
             lastMacEntry: try await macHistory
         )
+    }
+
+    private func macHistoryQueryType(for queryType: DestinationQueryType) -> DestinationQueryType {
+        switch queryType {
+        case .macOSCatalyst, .macOSDesignedForIPad, .all:
+            return .macOS
+        default:
+            return queryType
+        }
+    }
+
+    private func isMacOnlyQuery(_ queryType: DestinationQueryType) -> Bool {
+        switch queryType {
+        case .macOS, .macOSCatalyst, .macOSDesignedForIPad:
+            return true
+        default:
+            return false
+        }
     }
 }

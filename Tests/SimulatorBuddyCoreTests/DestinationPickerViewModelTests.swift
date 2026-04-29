@@ -45,7 +45,7 @@ struct DestinationPickerViewModelTests {
             )
         )
 
-        #expect(viewModel.selectedUDID == "SIM-1")
+        #expect(viewModel.selectedIdentifier == "SIM-1")
         #expect(viewModel.isPinned(simulator))
     }
 
@@ -88,5 +88,48 @@ struct DestinationPickerViewModelTests {
         viewModel.chooseSelected()
 
         #expect(output.snapshot() == ["SIM-1"])
+    }
+
+    @Test
+    func selectedRecord_usesXcodeDestinationSpecifierForDuplicateMacIds() {
+        let ipadRecord = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "My Mac - Designed for [iPad,iPhone]",
+            runtime: "Designed for [iPad,iPhone]",
+            state: .available,
+            stateDescription: "Available",
+            macOSVariant: "Designed for [iPad,iPhone]",
+            xcodeDestinationSpecifier: "platform=macOS,variant=Designed for [iPad,iPhone],id=MAC-UDID-1"
+        )
+        let catalystRecord = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "My Mac - Mac Catalyst",
+            runtime: "Mac Catalyst",
+            state: .available,
+            stateDescription: "Available",
+            macOSVariant: "Mac Catalyst",
+            xcodeDestinationSpecifier: "platform=macOS,variant=Mac Catalyst,id=MAC-UDID-1"
+        )
+        let viewModel = DestinationPickerViewModel(
+            loadedSelection: LoadedDestinationSelection(
+                queryType: .macOS,
+                scope: nil,
+                simulatorRecords: [],
+                deviceRecords: [],
+                macRecords: [ipadRecord, catalystRecord],
+                simulatorErrorMessage: nil,
+                deviceErrorMessage: nil,
+                macErrorMessage: nil,
+                lastSimulatorEntry: nil,
+                lastDeviceEntry: nil,
+                lastMacEntry: nil
+            )
+        )
+
+        viewModel.selectedIdentifier = catalystRecord.selectionIdentifier
+
+        #expect(viewModel.selectedRecord(identifier: viewModel.selectedIdentifier) == catalystRecord)
     }
 }

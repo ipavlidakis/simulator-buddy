@@ -102,6 +102,82 @@ struct CLIApplicationTests {
     }
 
     @Test
+    func list_macosCatalystWithXcodeFlags_filtersXcodeDestinations() async throws {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let ipadRecord = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "My Mac - Designed for [iPad,iPhone]",
+            runtime: "Designed for [iPad,iPhone]",
+            state: .available,
+            stateDescription: "Available",
+            macOSVariant: "Designed for [iPad,iPhone]",
+            xcodeDestinationSpecifier: "platform=macOS,variant=Designed for [iPad,iPhone],id=MAC-UDID-1"
+        )
+        let catalystRecord = DestinationRecord(
+            kind: .macOS,
+            udid: "MAC-UDID-1",
+            name: "My Mac - Mac Catalyst",
+            runtime: "Mac Catalyst",
+            state: .available,
+            stateDescription: "Available",
+            macOSVariant: "Mac Catalyst",
+            xcodeDestinationSpecifier: "platform=macOS,variant=Mac Catalyst,id=MAC-UDID-1"
+        )
+
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(
+                simulators: [],
+                devices: [],
+                macs: [ipadRecord, catalystRecord]
+            ),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))),
+            pickerPresenter: StubPickerPresenter(result: .success(catalystRecord)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(
+            arguments: [
+                "list",
+                "--type", "macos-catalyst",
+                "--xcode-project", "/tmp/MyApp.xcodeproj",
+                "--xcode-scheme", "MyApp",
+                "--format", "json",
+            ]
+        )
+
+        let output = stdout.snapshot().joined()
+        #expect(exitCode == 0)
+        #expect(stderr.snapshot().isEmpty)
+        #expect(output.contains("Mac Catalyst"))
+        #expect(output.contains("platform=macOS,variant=Mac Catalyst,id=MAC-UDID-1"))
+        #expect(output.contains("Designed for [iPad,iPhone]") == false)
+    }
+
+    @Test
+    func list_macosVariantWithoutXcodeFlags_failsWithUsage() async {
+        let stdout = OutputRecorder()
+        let stderr = OutputRecorder()
+        let app = CLIApplication(
+            fetcher: StaticDestinationFetcher(simulators: [], devices: []),
+            historyStore: HistoryStore(paths: AppPaths(rootDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))),
+            pickerPresenter: StubPickerPresenter(result: .failure(DestinationPickerFailure.cancelled)),
+            currentWorkingDirectory: { URL(fileURLWithPath: "/tmp", isDirectory: true) },
+            standardOutput: { stdout.write($0) },
+            standardError: { stderr.write($0) }
+        )
+
+        let exitCode = await app.run(arguments: ["list", "--type", "macos-designed-for-ipad"])
+
+        #expect(exitCode == 1)
+        #expect(stdout.snapshot().isEmpty)
+        #expect(stderr.snapshot().joined().contains("--xcode-scheme"))
+    }
+
+    @Test
     func select_cancel_returnsExitCode130() async {
         let stdout = OutputRecorder()
         let stderr = OutputRecorder()

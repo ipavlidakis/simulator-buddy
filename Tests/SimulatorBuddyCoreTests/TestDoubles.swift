@@ -46,7 +46,7 @@ actor StubHistoryProvider: HistoryProviding {
             return simulatorEntry
         case .device:
             return deviceEntry
-        case .macOS:
+        case .macOS, .macOSCatalyst, .macOSDesignedForIPad:
             return macEntry
         case .all:
             return allEntry ?? simulatorEntry ?? deviceEntry ?? macEntry
@@ -76,6 +76,10 @@ actor StaticDestinationFetcher: DestinationFetching {
     func fetchMacs() async throws -> [DestinationRecord] {
         macs
     }
+
+    func fetchMacRunDestinationsFromXcode(context: XcodeSchemeContext) async throws -> [DestinationRecord] {
+        macs
+    }
 }
 
 actor ContinuationDestinationFetcher: DestinationFetching {
@@ -102,6 +106,10 @@ actor ContinuationDestinationFetcher: DestinationFetching {
         macs
     }
 
+    func fetchMacRunDestinationsFromXcode(context: XcodeSchemeContext) async throws -> [DestinationRecord] {
+        macs
+    }
+
     func resumeSimulators(with result: Result<[DestinationRecord], Error>) {
         simulatorContinuation?.resume(with: result)
         simulatorContinuation = nil
@@ -115,7 +123,11 @@ final class StubPickerPresenter: PickerPresenting, @unchecked Sendable {
         self.result = result
     }
 
-    func present(queryType: DestinationQueryType, scope: SelectionScope?) async throws -> DestinationRecord {
+    func present(
+        queryType: DestinationQueryType,
+        scope: SelectionScope?,
+        xcodeContext: XcodeSchemeContext?
+    ) async throws -> DestinationRecord {
         try result.get()
     }
 }

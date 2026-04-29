@@ -21,13 +21,18 @@ final class NativePickerPresenter: PickerPresenting, @unchecked Sendable {
     @MainActor
     func present(
         queryType: DestinationQueryType,
-        scope: SelectionScope?
+        scope: SelectionScope?,
+        xcodeContext: XcodeSchemeContext?
     ) async throws -> DestinationRecord {
         guard Self.hasGUISession else {
             throw SimulatorBuddyError.guiUnavailable
         }
 
-        let loadedSelection = try await loader.load(queryType: queryType, scope: scope)
+        let loadedSelection = try await loader.load(
+            queryType: queryType,
+            scope: scope,
+            xcodeContext: xcodeContext
+        )
         let viewModel = DestinationPickerViewModel(loadedSelection: loadedSelection)
 
         let application = NSApplication.shared
@@ -110,7 +115,7 @@ private struct PickerRootView: View {
                 Text(errorMessage)
             }
 
-            List(selection: $viewModel.selectedUDID) {
+            List(selection: $viewModel.selectedIdentifier) {
                 if viewModel.queryType.includes(.simulator) {
                     Section("Simulators") {
                         if let simulatorErrorMessage = viewModel.simulatorErrorMessage,
@@ -120,7 +125,7 @@ private struct PickerRootView: View {
 
                         ForEach(viewModel.displayedSimulators) { record in
                             destinationRow(for: record)
-                                .tag(record.udid)
+                                .tag(record.selectionIdentifier)
                         }
                     }
                 }
@@ -134,7 +139,7 @@ private struct PickerRootView: View {
 
                         ForEach(viewModel.displayedDevices) { record in
                             destinationRow(for: record)
-                                .tag(record.udid)
+                                .tag(record.selectionIdentifier)
                         }
                     }
                 }
@@ -148,7 +153,7 @@ private struct PickerRootView: View {
 
                         ForEach(viewModel.displayedMacs) { record in
                             destinationRow(for: record)
-                                .tag(record.udid)
+                                .tag(record.selectionIdentifier)
                         }
                     }
                 }
@@ -167,7 +172,7 @@ private struct PickerRootView: View {
                 Button("Select") {
                     viewModel.chooseSelected()
                 }
-                .disabled(viewModel.selectedRecord(udid: viewModel.selectedUDID) == nil)
+                .disabled(viewModel.selectedRecord(identifier: viewModel.selectedIdentifier) == nil)
                 .keyboardShortcut(.defaultAction)
             }
         }

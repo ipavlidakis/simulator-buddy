@@ -1,7 +1,11 @@
 import Foundation
 
 public protocol PickerPresenting: Sendable {
-    func present(queryType: DestinationQueryType, scope: SelectionScope?) async throws -> DestinationRecord
+    func present(
+        queryType: DestinationQueryType,
+        scope: SelectionScope?,
+        xcodeContext: XcodeSchemeContext?
+    ) async throws -> DestinationRecord
 }
 
 public final class CLIApplication: @unchecked Sendable {
@@ -45,21 +49,22 @@ public final class CLIApplication: @unchecked Sendable {
             case .help:
                 standardOutput(Self.usage)
                 return 0
-            case let .list(type, format):
-                try await runList(type: type, format: format)
+            case let .list(type, format, xcodeContext):
+                try await runList(type: type, format: format, xcodeContext: xcodeContext)
                 return 0
-            case let .last(type, scope, format):
-                try await runLast(type: type, scope: scope, format: format)
+            case let .last(type, scope, format, xcodeContext):
+                try await runLast(type: type, scope: scope, format: format, xcodeContext: xcodeContext)
                 return 0
-            case let .select(type, scope, format):
-                try await runSelect(type: type, scope: scope, format: format)
+            case let .select(type, scope, format, xcodeContext):
+                try await runSelect(type: type, scope: scope, format: format, xcodeContext: xcodeContext)
                 return 0
-            case let .debug(type, scope, processName, lldbCommandFile):
+            case let .debug(type, scope, processName, lldbCommandFile, xcodeContext):
                 try await runDebug(
                     type: type,
                     scope: scope,
                     processName: processName,
-                    lldbCommandFile: lldbCommandFile
+                    lldbCommandFile: lldbCommandFile,
+                    xcodeContext: xcodeContext
                 )
                 return 0
             }
@@ -77,8 +82,12 @@ public final class CLIApplication: @unchecked Sendable {
         }
     }
 
-    private func runList(type: DestinationQueryType, format: SelectOutputFormat) async throws {
-        let records = try await fetchRecords(for: type)
+    private func runList(
+        type: DestinationQueryType,
+        format: SelectOutputFormat,
+        xcodeContext: XcodeSchemeContext?
+    ) async throws {
+        let records = try await fetchRecords(for: type, xcodeContext: xcodeContext)
         guard records.isEmpty == false else {
             throw SimulatorBuddyError.noDestinations(type)
         }
@@ -96,13 +105,14 @@ public final class CLIApplication: @unchecked Sendable {
     private func runLast(
         type: DestinationQueryType,
         scope: SelectionScope,
-        format: SelectOutputFormat
+        format: SelectOutputFormat,
+        xcodeContext: XcodeSchemeContext?
     ) async throws {
         guard let historyEntry = try await historyStore.resolveLast(type: type, scope: scope) else {
             throw SimulatorBuddyError.noHistory(type)
         }
 
-        let records = try await fetchRecords(for: type)
+        let records = try await fetchRecords(for: type, xcodeContext: xcodeContext)
         guard let record = records.first(where: { $0.udid == historyEntry.udid }) else {
             throw SimulatorBuddyError.historyDestinationUnavailable(historyEntry.udid)
         }
@@ -119,9 +129,14 @@ public final class CLIApplication: @unchecked Sendable {
     private func runSelect(
         type: DestinationQueryType,
         scope: SelectionScope,
-        format: SelectOutputFormat
+        format: SelectOutputFormat,
+        xcodeContext: XcodeSchemeContext?
     ) async throws {
-        let record = try await pickerPresenter.present(queryType: type, scope: scope)
+        let record = try await pickerPresenter.present(
+            queryType: type,
+            scope: scope,
+            xcodeContext: xcodeContext
+        )
         let selection = ResolvedSelection(destination: record, scope: scope, selectedAt: now())
         try await historyStore.record(selection: selection)
         try output(selection: selection, format: format)
@@ -131,9 +146,14 @@ public final class CLIApplication: @unchecked Sendable {
         type: DestinationQueryType,
         scope: SelectionScope,
         processName: String,
-        lldbCommandFile: String
+        lldbCommandFile: String,
+        xcodeContext: XcodeSchemeContext?
     ) async throws {
-        let record = try await pickerPresenter.present(queryType: type, scope: scope)
+        let record = try await pickerPresenter.present(
+            queryType: type,
+            scope: scope,
+            xcodeContext: xcodeContext
+        )
         let selectedAt = now()
         let selection = ResolvedSelection(destination: record, scope: scope, selectedAt: selectedAt)
         try await historyStore.record(selection: selection)
@@ -189,18 +209,68 @@ public final class CLIApplication: @unchecked Sendable {
         return "\"\(escaped)\""
     }
 
-    private func fetchRecords(for type: DestinationQueryType) async throws -> [DestinationRecord] {
+    private func fetchMacDestinationRecords(
+        queryType: DestinationQueryType,
+        xcodeContext: XcodeSchemeContext?,
+        filter: MacOSRecordsFilter
+    ) async throws -> [DestinationRecord] {
+        if let xcodeContext {
+            let raw = try await fetcher.fetchMacRunDestinationsFromXcode(context: xcodeContext)
+            let out = filter.filteredRecords(from: raw)
+            if filter != .allVariants, out.isEmpty {
+                throw SimulatorBuddyError.noDestinations(queryType)
+            }
+            return out
+        }
+
+        if filter != .allVariants {
+            throw SimulatorBuddyError.usage(
+                """
+                --type \(queryType.rawValue) requires --xcode-scheme and one of \
+                --xcode-project or --xcode-workspace.
+                """
+            )
+        }
+
+        return try await fetcher.fetchMacs()
+    }
+
+    private func fetchRecords(
+        for type: DestinationQueryType,
+        xcodeContext: XcodeSchemeContext?
+    ) async throws -> [DestinationRecord] {
         switch type {
         case .simulator:
             return try await fetcher.fetchSimulators()
         case .device:
             return try await fetcher.fetchDevices()
         case .macOS:
-            return try await fetcher.fetchMacs()
+            return try await fetchMacDestinationRecords(
+                queryType: .macOS,
+                xcodeContext: xcodeContext,
+                filter: .allVariants
+            )
+        case .macOSCatalyst:
+            return try await fetchMacDestinationRecords(
+                queryType: .macOSCatalyst,
+                xcodeContext: xcodeContext,
+                filter: .catalyst
+            )
+        case .macOSDesignedForIPad:
+            return try await fetchMacDestinationRecords(
+                queryType: .macOSDesignedForIPad,
+                xcodeContext: xcodeContext,
+                filter: .designedForIPad
+            )
         case .all:
             async let simulators = fetcher.fetchSimulators()
             async let devices = fetcher.fetchDevices()
-            async let macs = fetcher.fetchMacs()
+            async let macs: [DestinationRecord] = {
+                if let xcodeContext {
+                    return try await fetcher.fetchMacRunDestinationsFromXcode(context: xcodeContext)
+                }
+                return try await fetcher.fetchMacs()
+            }()
             return try await (simulators + devices + macs)
                 .sorted { lhs, rhs in
                     if lhs.kind != rhs.kind {
@@ -275,6 +345,9 @@ public final class CLIApplication: @unchecked Sendable {
         var scope: SelectionScope?
         var processName: String?
         var lldbCommandFile: String?
+        var xcodeProjectPath: String?
+        var xcodeWorkspacePath: String?
+        var xcodeScheme: String?
         var index = 1
 
         while index < arguments.count {
@@ -294,6 +367,15 @@ public final class CLIApplication: @unchecked Sendable {
             case "--lldb-command-file":
                 index += 1
                 lldbCommandFile = try parseValue(arguments, index: index, option: "--lldb-command-file")
+            case "--xcode-project":
+                index += 1
+                xcodeProjectPath = try parseValue(arguments, index: index, option: "--xcode-project")
+            case "--xcode-workspace":
+                index += 1
+                xcodeWorkspacePath = try parseValue(arguments, index: index, option: "--xcode-workspace")
+            case "--xcode-scheme":
+                index += 1
+                xcodeScheme = try parseValue(arguments, index: index, option: "--xcode-scheme")
             case "--help", "-h":
                 return .help
             default:
@@ -305,14 +387,29 @@ public final class CLIApplication: @unchecked Sendable {
 
         let resolvedType = type ?? .all
         let resolvedScope = scope ?? SelectionScope.automatic(workingDirectory: currentWorkingDirectory())
+        let xcodeContext = try makeXcodeContext(
+            projectPath: xcodeProjectPath,
+            workspacePath: xcodeWorkspacePath,
+            scheme: xcodeScheme
+        )
 
         switch commandName {
         case "list":
-            return .list(type: resolvedType, format: format ?? .table)
+            return .list(type: resolvedType, format: format ?? .table, xcodeContext: xcodeContext)
         case "last":
-            return .last(type: resolvedType, scope: resolvedScope, format: format ?? .udid)
+            return .last(
+                type: resolvedType,
+                scope: resolvedScope,
+                format: format ?? .udid,
+                xcodeContext: xcodeContext
+            )
         case "select":
-            return .select(type: resolvedType, scope: resolvedScope, format: format ?? .udid)
+            return .select(
+                type: resolvedType,
+                scope: resolvedScope,
+                format: format ?? .udid,
+                xcodeContext: xcodeContext
+            )
         case "debug":
             guard let processName, processName.isEmpty == false else {
                 throw SimulatorBuddyError.usage("Missing value for --process-name")
@@ -324,11 +421,52 @@ public final class CLIApplication: @unchecked Sendable {
                 type: resolvedType,
                 scope: resolvedScope,
                 processName: processName,
-                lldbCommandFile: lldbCommandFile
+                lldbCommandFile: lldbCommandFile,
+                xcodeContext: xcodeContext
             )
         default:
             throw SimulatorBuddyError.usage("Unknown command: \(commandName)")
         }
+    }
+
+    private func makeXcodeContext(
+        projectPath: String?,
+        workspacePath: String?,
+        scheme: String?
+    ) throws -> XcodeSchemeContext? {
+        let hasProject = projectPath != nil
+        let hasWorkspace = workspacePath != nil
+        let hasScheme = scheme != nil
+
+        if hasProject, hasWorkspace {
+            throw SimulatorBuddyError.usage("Pass only one of --xcode-project or --xcode-workspace.")
+        }
+
+        if hasProject || hasWorkspace {
+            guard let scheme, scheme.isEmpty == false else {
+                throw SimulatorBuddyError.usage("--xcode-scheme is required with --xcode-project or --xcode-workspace.")
+            }
+            let url: URL
+            let root: XcodeSchemeContext.Root
+            if let projectPath {
+                url = URL(fileURLWithPath: projectPath, isDirectory: false)
+                root = .project(url)
+            } else if let workspacePath {
+                url = URL(fileURLWithPath: workspacePath, isDirectory: false)
+                root = .workspace(url)
+            } else {
+                throw SimulatorBuddyError.usage("Internal error resolving Xcode root.")
+            }
+            return XcodeSchemeContext(root: root, scheme: scheme)
+        }
+
+        if hasScheme {
+            throw SimulatorBuddyError.usage(
+                "--xcode-scheme requires --xcode-project or --xcode-workspace."
+            )
+        }
+
+        return nil
     }
 
     private func parseType(_ arguments: [String], index: Int) throws -> DestinationQueryType {
@@ -359,14 +497,25 @@ public final class CLIApplication: @unchecked Sendable {
 
     private enum ParsedCommand {
         case help
-        case list(type: DestinationQueryType, format: SelectOutputFormat)
-        case last(type: DestinationQueryType, scope: SelectionScope, format: SelectOutputFormat)
-        case select(type: DestinationQueryType, scope: SelectionScope, format: SelectOutputFormat)
+        case list(type: DestinationQueryType, format: SelectOutputFormat, xcodeContext: XcodeSchemeContext?)
+        case last(
+            type: DestinationQueryType,
+            scope: SelectionScope,
+            format: SelectOutputFormat,
+            xcodeContext: XcodeSchemeContext?
+        )
+        case select(
+            type: DestinationQueryType,
+            scope: SelectionScope,
+            format: SelectOutputFormat,
+            xcodeContext: XcodeSchemeContext?
+        )
         case debug(
             type: DestinationQueryType,
             scope: SelectionScope,
             processName: String,
-            lldbCommandFile: String
+            lldbCommandFile: String,
+            xcodeContext: XcodeSchemeContext?
         )
     }
 
@@ -385,9 +534,17 @@ public final class CLIApplication: @unchecked Sendable {
 
     static let usage = """
     Usage:
-      simulator-buddy list [--type simulator|device|macos|all] [--format table|json]
-      simulator-buddy last [--type simulator|device|macos|all] [--scope <key>] [--format udid|json]
-      simulator-buddy select [--type simulator|device|macos|all] [--scope <key>] [--format udid|json]
-      simulator-buddy debug --process-name <name> --lldb-command-file <path> [--type simulator|device|macos|all] [--scope <key>]
+      simulator-buddy list [--type simulator|device|macos|macos-catalyst|macos-designed-for-ipad|all] \
+    [--format table|json] [--xcode-project <path>|--xcode-workspace <path>] [--xcode-scheme <name>]
+      simulator-buddy last [--type <type>] [--scope <key>] [--format udid|json] [Xcode flags as above]
+      simulator-buddy select [--type <type>] [--scope <key>] [--format udid|json] [Xcode flags as above]
+      simulator-buddy debug --process-name <name> --lldb-command-file <path> [--type <type>] [--scope <key>] \
+    [Xcode flags as above]
+
+      When --type is macos-catalyst or macos-designed-for-ipad, pass --xcode-scheme and one of \
+    --xcode-project or --xcode-workspace. For --type all or macos, Xcode flags are optional; when \
+    provided, Mac rows come from xcodebuild (with correct specifier for -destination).
+
+      Types macos-catalyst and macos-designed-for-ipad filter My Mac run destinations for that scheme.
     """
 }

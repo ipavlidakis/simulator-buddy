@@ -33,7 +33,7 @@ public struct DestinationCacheSnapshot: Codable, Equatable, Sendable {
             return simulators
         case .device:
             return devices
-        case .macOS:
+        case .macOS, .macOSCatalyst, .macOSDesignedForIPad:
             return macs
         case .all:
             return simulators + devices + macs

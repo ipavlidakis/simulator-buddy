@@ -63,7 +63,8 @@ struct DestinationSelectionLoaderTests {
 
         let loaded = try await loader.load(
             queryType: .all,
-            scope: SelectionScope.explicit("workspace")
+            scope: SelectionScope.explicit("workspace"),
+            xcodeContext: nil
         )
         let cache = try await cacheStore.load()
 

@@ -21,6 +21,8 @@ public enum DestinationQueryType: String, Codable, CaseIterable, Sendable {
     case simulator
     case device
     case macOS = "macos"
+    case macOSCatalyst = "macos-catalyst"
+    case macOSDesignedForIPad = "macos-designed-for-ipad"
     case all
 
     public var kinds: [DestinationKind] {
@@ -29,7 +31,7 @@ public enum DestinationQueryType: String, Codable, CaseIterable, Sendable {
             return [.simulator]
         case .device:
             return [.device]
-        case .macOS:
+        case .macOS, .macOSCatalyst, .macOSDesignedForIPad:
             return [.macOS]
         case .all:
             return DestinationKind.allCases
@@ -38,6 +40,40 @@ public enum DestinationQueryType: String, Codable, CaseIterable, Sendable {
 
     public func includes(_ kind: DestinationKind) -> Bool {
         kinds.contains(kind)
+    }
+
+    /// Subset of this query that only applies when sourcing Mac rows from Xcode.
+    public var macOSRecordsFilter: MacOSRecordsFilter {
+        switch self {
+        case .macOSCatalyst:
+            return .catalyst
+        case .macOSDesignedForIPad:
+            return .designedForIPad
+        case .macOS, .all, .simulator, .device:
+            return .allVariants
+        }
+    }
+}
+
+/// How to filter `platform:macOS` rows parsed from `xcodebuild -showdestinations`.
+public enum MacOSRecordsFilter: Sendable {
+    case allVariants
+    case catalyst
+    case designedForIPad
+
+    public func filteredRecords(from records: [DestinationRecord]) -> [DestinationRecord] {
+        switch self {
+        case .allVariants:
+            return records
+        case .catalyst:
+            return records.filter {
+                ($0.macOSVariant ?? "").localizedCaseInsensitiveContains("catalyst")
+            }
+        case .designedForIPad:
+            return records.filter {
+                ($0.macOSVariant ?? "").localizedCaseInsensitiveContains("ipad")
+            }
+        }
     }
 }
 
@@ -96,6 +132,10 @@ public struct DestinationRecord: Codable, Equatable, Identifiable, Sendable {
     public let stateDescription: String
     public let lastBootedAt: Date?
     public let sourceIdentifier: String?
+    /// When sourced from `xcodebuild -showdestinations` (e.g. `Mac Catalyst`).
+    public let macOSVariant: String?
+    /// Pass-through for `xcodebuild -destination` (for example `platform=macOS,variant=Mac Catalyst,id=...`).
+    public let xcodeDestinationSpecifier: String?
 
     public init(
         kind: DestinationKind,
@@ -105,7 +145,9 @@ public struct DestinationRecord: Codable, Equatable, Identifiable, Sendable {
         state: DestinationState,
         stateDescription: String,
         lastBootedAt: Date? = nil,
-        sourceIdentifier: String? = nil
+        sourceIdentifier: String? = nil,
+        macOSVariant: String? = nil,
+        xcodeDestinationSpecifier: String? = nil
     ) {
         self.kind = kind
         self.udid = udid
@@ -115,10 +157,16 @@ public struct DestinationRecord: Codable, Equatable, Identifiable, Sendable {
         self.stateDescription = stateDescription
         self.lastBootedAt = lastBootedAt
         self.sourceIdentifier = sourceIdentifier
+        self.macOSVariant = macOSVariant
+        self.xcodeDestinationSpecifier = xcodeDestinationSpecifier
     }
 
     public var id: String {
-        udid
+        selectionIdentifier
+    }
+
+    public var selectionIdentifier: String {
+        xcodeDestinationSpecifier ?? udid
     }
 
     public func matches(searchText: String) -> Bool {
@@ -132,9 +180,55 @@ public struct DestinationRecord: Codable, Equatable, Identifiable, Sendable {
             runtime ?? "",
             stateDescription,
             udid,
+            macOSVariant ?? "",
+            xcodeDestinationSpecifier ?? "",
         ].joined(separator: " ").lowercased()
 
         return haystack.contains(needle.lowercased())
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case udid
+        case name
+        case runtime
+        case state
+        case stateDescription
+        case lastBootedAt
+        case sourceIdentifier
+        case macOSVariant
+        case xcodeDestinationSpecifier
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(DestinationKind.self, forKey: .kind)
+        udid = try container.decode(String.self, forKey: .udid)
+        name = try container.decode(String.self, forKey: .name)
+        runtime = try container.decodeIfPresent(String.self, forKey: .runtime)
+        state = try container.decode(DestinationState.self, forKey: .state)
+        stateDescription = try container.decode(String.self, forKey: .stateDescription)
+        lastBootedAt = try container.decodeIfPresent(Date.self, forKey: .lastBootedAt)
+        sourceIdentifier = try container.decodeIfPresent(String.self, forKey: .sourceIdentifier)
+        macOSVariant = try container.decodeIfPresent(String.self, forKey: .macOSVariant)
+        xcodeDestinationSpecifier = try container.decodeIfPresent(
+            String.self,
+            forKey: .xcodeDestinationSpecifier
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(udid, forKey: .udid)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(runtime, forKey: .runtime)
+        try container.encode(state, forKey: .state)
+        try container.encode(stateDescription, forKey: .stateDescription)
+        try container.encodeIfPresent(lastBootedAt, forKey: .lastBootedAt)
+        try container.encodeIfPresent(sourceIdentifier, forKey: .sourceIdentifier)
+        try container.encodeIfPresent(macOSVariant, forKey: .macOSVariant)
+        try container.encodeIfPresent(xcodeDestinationSpecifier, forKey: .xcodeDestinationSpecifier)
     }
 }
 

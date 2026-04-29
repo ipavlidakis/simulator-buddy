@@ -48,7 +48,7 @@ public struct HistorySnapshot: Codable, Equatable, Sendable {
             return lastSimulator
         case .device:
             return lastDevice
-        case .macOS:
+        case .macOS, .macOSCatalyst, .macOSDesignedForIPad:
             return lastMac
         case .all:
             if let lastAny {

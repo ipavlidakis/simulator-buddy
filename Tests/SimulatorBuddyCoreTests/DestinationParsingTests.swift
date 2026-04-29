@@ -159,4 +159,30 @@ struct DestinationParsingTests {
             ),
         ])
     }
+
+    @Test
+    func parseMacOSRunDestinations_extractsVariantIdAndSpecifier() {
+        let stdout = """
+        Available destinations for scheme:
+        \\t\\t{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006000-aaa, name:My Mac }
+        \\t\\t{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00006000-aaa, name:My Mac }
+        """
+
+        let records = XcodeShowDestinationsParser.parseMacOSRunDestinations(from: stdout)
+
+        #expect(records.count == 2)
+        #expect(records[0].udid == "00006000-aaa")
+        #expect(
+            records[0].xcodeDestinationSpecifier
+                == "platform=macOS,arch=arm64,variant=Designed for [iPad,iPhone],id=00006000-aaa"
+        )
+        #expect(records[0].macOSVariant == "Designed for [iPad,iPhone]")
+        #expect(records[1].macOSVariant == "Mac Catalyst")
+        #expect(records[0].selectionIdentifier != records[1].selectionIdentifier)
+
+        let ipadOnly = MacOSRecordsFilter.designedForIPad.filteredRecords(from: records)
+        let catalystOnly = MacOSRecordsFilter.catalyst.filteredRecords(from: records)
+        #expect(ipadOnly.map(\.udid) == ["00006000-aaa"])
+        #expect(catalystOnly.map(\.udid) == ["00006000-aaa"])
+    }
 }

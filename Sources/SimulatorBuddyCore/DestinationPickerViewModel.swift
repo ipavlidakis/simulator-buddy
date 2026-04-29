@@ -21,7 +21,7 @@ public final class DestinationPickerViewModel: ObservableObject {
     public let scope: SelectionScope?
 
     @Published public var searchText = ""
-    @Published public var selectedUDID: String?
+    @Published public var selectedIdentifier: String?
     @Published public private(set) var simulatorRecords: [DestinationRecord]
     @Published public private(set) var deviceRecords: [DestinationRecord]
     @Published public private(set) var macRecords: [DestinationRecord]
@@ -52,15 +52,15 @@ public final class DestinationPickerViewModel: ObservableObject {
 
         if let lastSimulatorEntry,
            simulatorRecords.contains(where: { $0.udid == lastSimulatorEntry.udid }) {
-            selectedUDID = lastSimulatorEntry.udid
+            selectedIdentifier = lastSimulatorEntry.udid
         } else if let lastDeviceEntry,
                   deviceRecords.contains(where: { $0.udid == lastDeviceEntry.udid }) {
-            selectedUDID = lastDeviceEntry.udid
+            selectedIdentifier = lastDeviceEntry.udid
         } else if let lastMacEntry,
-                  macRecords.contains(where: { $0.udid == lastMacEntry.udid }) {
-            selectedUDID = lastMacEntry.udid
+                  let record = macRecords.first(where: { $0.udid == lastMacEntry.udid }) {
+            selectedIdentifier = record.selectionIdentifier
         } else {
-            selectedUDID = (simulatorRecords + deviceRecords + macRecords).first?.udid
+            selectedIdentifier = (simulatorRecords + deviceRecords + macRecords).first?.selectionIdentifier
         }
     }
 
@@ -81,7 +81,7 @@ public final class DestinationPickerViewModel: ObservableObject {
     }
 
     public func chooseSelected() {
-        guard let record = selectedRecord(udid: selectedUDID) else {
+        guard let record = selectedRecord(identifier: selectedIdentifier) else {
             errorMessage = "Choose a destination first."
             return
         }
@@ -93,12 +93,14 @@ public final class DestinationPickerViewModel: ObservableObject {
         resolve(.failure(.cancelled))
     }
 
-    public func selectedRecord(udid: String?) -> DestinationRecord? {
-        guard let udid else {
+    public func selectedRecord(identifier: String?) -> DestinationRecord? {
+        guard let identifier else {
             return nil
         }
 
-        return (displayedSimulators + displayedDevices + displayedMacs).first { $0.udid == udid }
+        return (displayedSimulators + displayedDevices + displayedMacs).first {
+            $0.selectionIdentifier == identifier
+        }
     }
 
     public func isPinned(_ record: DestinationRecord) -> Bool {
