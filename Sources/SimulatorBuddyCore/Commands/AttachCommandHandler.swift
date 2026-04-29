@@ -29,6 +29,15 @@ final class AttachCommandHandler: @unchecked Sendable {
     /// Builder that writes the LLDB attach script.
     private let commandBuilder: LLDBAttachCommandBuilder
 
+    /// Replaces the AppKit picker process with a clean direct-attach process.
+    private let processReplacer: (any ProcessReplacing)?
+
+    /// Executable path used when relaunching after a picker selection.
+    private let executablePath: String?
+
+    /// Builds direct-attach arguments for the relaunch path.
+    private let relaunchArgumentsBuilder: AttachRelaunchArgumentsBuilder
+
     /// Creates the attach handler with injectable process and picker dependencies.
     init(
         historyStore: HistoryStore,
@@ -39,7 +48,10 @@ final class AttachCommandHandler: @unchecked Sendable {
         temporaryDirectory: @escaping @Sendable () -> URL,
         streamStandardOutput: @escaping @Sendable (String) -> Void,
         streamStandardError: @escaping @Sendable (String) -> Void,
-        commandBuilder: LLDBAttachCommandBuilder = LLDBAttachCommandBuilder()
+        commandBuilder: LLDBAttachCommandBuilder = LLDBAttachCommandBuilder(),
+        processReplacer: (any ProcessReplacing)? = nil,
+        executablePath: String? = nil,
+        relaunchArgumentsBuilder: AttachRelaunchArgumentsBuilder = AttachRelaunchArgumentsBuilder()
     ) {
         self.historyStore = historyStore
         self.pickerPresenter = pickerPresenter
@@ -50,6 +62,9 @@ final class AttachCommandHandler: @unchecked Sendable {
         self.streamStandardOutput = streamStandardOutput
         self.streamStandardError = streamStandardError
         self.commandBuilder = commandBuilder
+        self.processReplacer = processReplacer
+        self.executablePath = executablePath
+        self.relaunchArgumentsBuilder = relaunchArgumentsBuilder
     }
 
     /// Resolves a destination, writes an LLDB script, runs LLDB, and returns its exit code.
@@ -59,17 +74,29 @@ final class AttachCommandHandler: @unchecked Sendable {
         processName: String,
         destination: String?
     ) async throws -> Int32 {
-        let record = try await resolveDestination(
+        let resolution = try await resolveDestination(
             type: type,
             scope: scope,
             destination: destination
         )
+        if resolution.source == .picker, let processReplacer, let executablePath {
+            return try processReplacer.replaceCurrentProcess(
+                executablePath: executablePath,
+                arguments: relaunchArguments(
+                    type: type,
+                    scope: scope,
+                    processName: processName,
+                    record: resolution.record
+                )
+            )
+        }
+
         let commandFileURL = temporaryDirectory()
             .appendingPathComponent("simulator-buddy-\(UUID().uuidString)")
             .appendingPathExtension("lldb")
         try commandBuilder.writeCommandFile(
             at: commandFileURL,
-            destination: record,
+            destination: resolution.record,
             processName: processName
         )
 
@@ -85,9 +112,12 @@ final class AttachCommandHandler: @unchecked Sendable {
         type: DestinationQueryType,
         scope: SelectionScope,
         destination: String?
-    ) async throws -> DestinationRecord {
+    ) async throws -> AttachDestinationResolution {
         if let destination, destination.isEmpty == false {
-            return try await destinationResolver.resolve(destination, type: type)
+            return AttachDestinationResolution(
+                record: try await destinationResolver.resolve(destination, type: type),
+                source: .provided
+            )
         }
 
         let record = try await pickerPresenter.present(
@@ -97,6 +127,21 @@ final class AttachCommandHandler: @unchecked Sendable {
         )
         let selection = ResolvedSelection(destination: record, scope: scope, selectedAt: now())
         try await historyStore.record(selection: selection)
-        return record
+        return AttachDestinationResolution(record: record, source: .picker)
+    }
+
+    /// Builds direct-attach arguments for the post-picker process replacement.
+    private func relaunchArguments(
+        type: DestinationQueryType,
+        scope: SelectionScope,
+        processName: String,
+        record: DestinationRecord
+    ) -> [String] {
+        relaunchArgumentsBuilder.arguments(
+            type: type,
+            scope: scope,
+            processName: processName,
+            destination: record.xcodeDestinationSpecifier ?? record.udid
+        )
     }
 }

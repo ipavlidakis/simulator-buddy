@@ -81,7 +81,9 @@ public final class CLIApplication: @unchecked Sendable {
             now: now,
             temporaryDirectory: temporaryDirectory,
             streamStandardOutput: streamStandardOutput,
-            streamStandardError: streamStandardError
+            streamStandardError: streamStandardError,
+            processReplacer: processReplacer,
+            executablePath: executablePath
         )
         runCommand = RunCommandHandler(
             historyStore: historyStore,
