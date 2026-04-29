@@ -49,7 +49,13 @@ public struct AppPaths: Sendable {
         historyDirectory = resolvedRoot.appendingPathComponent("history", isDirectory: true)
         scopesDirectory = historyDirectory.appendingPathComponent("scopes", isDirectory: true)
         cacheDirectory = resolvedRoot.appendingPathComponent("cache", isDirectory: true)
-        macRunDirectory = resolvedRoot.appendingPathComponent("mac-run", isDirectory: true)
+        if rootDirectory == nil {
+            macRunDirectory = fileManager.homeDirectoryForCurrentUser
+                .appendingPathComponent("Applications", isDirectory: true)
+                .appendingPathComponent("simulator-buddy", isDirectory: true)
+        } else {
+            macRunDirectory = resolvedRoot.appendingPathComponent("mac-run", isDirectory: true)
+        }
         globalHistoryFile = historyDirectory.appendingPathComponent("global.json")
         destinationCacheFile = cacheDirectory.appendingPathComponent("destinations.json")
     }

@@ -14,11 +14,15 @@ struct AppBundleFixtureFactory {
     func makeAppBundle(
         at appURL: URL,
         bundleIdentifier: String,
+        executableName: String? = nil,
         supportedPlatforms: [String] = []
     ) throws {
         try fileManager.createDirectory(at: appURL, withIntermediateDirectories: true)
         let plistURL = appURL.appendingPathComponent("Info.plist")
         var plist: [String: Any] = ["CFBundleIdentifier": bundleIdentifier]
+        if let executableName {
+            plist["CFBundleExecutable"] = executableName
+        }
         if supportedPlatforms.isEmpty == false {
             plist["CFBundleSupportedPlatforms"] = supportedPlatforms
         }

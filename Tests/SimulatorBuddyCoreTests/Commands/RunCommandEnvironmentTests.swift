@@ -9,9 +9,14 @@ struct RunCommandEnvironmentTests {
     func simulatorLaunch_forwardsEnvironment() async throws {
         let rootDirectory = temporaryDirectory()
         let appURL = rootDirectory.appendingPathComponent("Demo.app", isDirectory: true)
-        try AppBundleFixtureFactory().makeAppBundle(at: appURL, bundleIdentifier: "com.example.Demo")
+        try AppBundleFixtureFactory().makeAppBundle(
+            at: appURL,
+            bundleIdentifier: "com.example.Demo",
+            executableName: "Demo"
+        )
         let runner = RecordingCommandRunner(
             results: [
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
@@ -39,8 +44,22 @@ struct RunCommandEnvironmentTests {
         ))
         #expect(commands[3] == Command(
             executable: "xcrun",
-            arguments: ["simctl", "launch", "--console-pty", "--terminate-running-process", "SIM-1", "com.example.Demo"],
+            arguments: ["simctl", "launch", "--terminate-running-process", "SIM-1", "com.example.Demo"],
             environment: ["SIMCTL_CHILD_STREAM_VIDEO_TERMINAL_LOGS": "1"]
+        ))
+        #expect(commands[4] == Command(
+            executable: "xcrun",
+            arguments: [
+                "simctl",
+                "spawn",
+                "SIM-1",
+                "log",
+                "stream",
+                "--style",
+                "compact",
+                "--predicate",
+                #"process == "Demo""#,
+            ]
         ))
     }
 
@@ -94,10 +113,14 @@ struct RunCommandEnvironmentTests {
         try AppBundleFixtureFactory().makeAppBundle(
             at: appURL,
             bundleIdentifier: "com.example.Demo",
+            executableName: "Demo",
             supportedPlatforms: ["MacOSX"]
         )
         let runner = RecordingCommandRunner(
-            results: [CommandResult(terminationStatus: 0, stdout: "", stderr: "")]
+            results: [
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
+            ]
         )
         let app = makeApplication(rootDirectory: rootDirectory, runner: runner)
 
@@ -111,20 +134,22 @@ struct RunCommandEnvironmentTests {
 
         let commands = await runner.snapshot()
         #expect(exitCode == 0)
-        #expect(commands == [Command(
-            executable: "open",
-            arguments: [
-                "-n",
-                "-W",
-                "-o",
-                "/dev/stdout",
-                "--stderr",
-                "/dev/stderr",
-                "--env",
-                "STREAM_VIDEO_TERMINAL_LOGS=1",
-                appURL.path,
-            ]
-        )])
+        #expect(commands == [
+            Command(
+                executable: "open",
+                arguments: ["-n", "--env", "STREAM_VIDEO_TERMINAL_LOGS=1", appURL.path]
+            ),
+            Command(
+                executable: "log",
+                arguments: [
+                    "stream",
+                    "--style",
+                    "compact",
+                    "--predicate",
+                    #"process == "Demo""#,
+                ]
+            ),
+        ])
     }
 
     /// Verifies build-and-run forwards raw environment to the final physical-device launch command.

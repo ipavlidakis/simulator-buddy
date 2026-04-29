@@ -60,6 +60,7 @@ final class RunCommandHandler: @unchecked Sendable {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String] = [],
         destination: String?
     ) async throws -> Int32 {
         let appURL = URL(fileURLWithPath: appPath)
@@ -73,6 +74,7 @@ final class RunCommandHandler: @unchecked Sendable {
             bundleIdentifier: resolvedBundleIdentifier,
             skipInstall: skipInstall,
             environment: environment,
+            logCategories: logCategories,
             destinationRecord: record
         )
     }
@@ -83,6 +85,7 @@ final class RunCommandHandler: @unchecked Sendable {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String] = [],
         destinationRecord: DestinationRecord
     ) async throws -> Int32 {
         let appInfo = try appBundleInfoReader.read(at: appURL)
@@ -93,6 +96,7 @@ final class RunCommandHandler: @unchecked Sendable {
             bundleIdentifier: resolvedBundleIdentifier,
             skipInstall: skipInstall,
             environment: environment,
+            logCategories: logCategories,
             destinationRecord: destinationRecord
         )
     }
@@ -104,6 +108,7 @@ final class RunCommandHandler: @unchecked Sendable {
         bundleIdentifier: String,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String],
         destinationRecord record: DestinationRecord
     ) async throws -> Int32 {
         if let simulatorBootCommand = launchCommandBuilder.simulatorBootCommand(for: record) {
@@ -135,8 +140,23 @@ final class RunCommandHandler: @unchecked Sendable {
             bundleIdentifier: bundleIdentifier,
             environment: environment
         )
-        streamStandardError("Streaming app logs. Press Ctrl-C to stop.\n")
-        return try await runCommand(command)
+        let logCommand = launchCommandBuilder.logStreamCommand(
+            for: record,
+            appInfo: appInfo,
+            categories: logCategories
+        )
+        let streamsLogs = logCommand != nil || record.kind == .device
+        streamStandardError(streamsLogs ? "Streaming app logs. Press Ctrl-C to stop.\n" : "Launching app.\n")
+        let launchStatus = try await runCommand(command)
+        guard launchStatus == 0 else {
+            return launchStatus
+        }
+
+        if let logCommand {
+            return try await runCommand(logCommand)
+        }
+
+        return launchStatus
     }
 
     /// Resolves either a direct destination argument or a picker choice.

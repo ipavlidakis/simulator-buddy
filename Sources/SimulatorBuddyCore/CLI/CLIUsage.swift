@@ -18,9 +18,10 @@ struct CLIUsage {
           simulator-buddy attach --process-name <name> [--destination <udid|specifier>] [--type <type>] [--scope <key>]
           simulator-buddy run --app <path> [--bundle-id <id>] [--skip-install] [--env KEY=VALUE] \
         [--destination <udid|specifier>] \
-        [--type <type>] [--scope <key>]
+        [--type <type>] [--scope <key>] [--log-category <category>]
           simulator-buddy run (-project <path>|-workspace <path>) -scheme <name> [xcodebuild build flags] \
-        [--destination <udid|specifier>] [--type <type>] [--scope <key>] [--skip-install] [--env KEY=VALUE]
+        [--destination <udid|specifier>] [--type <type>] [--scope <key>] [--skip-install] [--env KEY=VALUE] \
+        [--log-category <category>]
           simulator-buddy <xcodebuild arguments>
 
           When --type is macos-catalyst or macos-designed-for-ipad, pass --xcode-scheme and one of \
@@ -28,6 +29,8 @@ struct CLIUsage {
         provided, Mac rows come from xcodebuild (with correct specifier for -destination).
 
           Types macos-catalyst and macos-designed-for-ipad filter My Mac run destinations for that scheme.
+
+          --log-category can be repeated or passed comma-separated values.
         """
     }
 }

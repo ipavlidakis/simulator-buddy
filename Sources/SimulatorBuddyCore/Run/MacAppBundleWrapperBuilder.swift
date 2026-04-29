@@ -24,12 +24,14 @@ final class MacAppBundleWrapperBuilder: @unchecked Sendable {
         let wrapperDirectoryURL = wrapperURL.appendingPathComponent("Wrapper", isDirectory: true)
         let copiedAppURL = wrapperDirectoryURL.appendingPathComponent(appURL.lastPathComponent, isDirectory: true)
         let wrappedBundleURL = wrapperURL.appendingPathComponent("WrappedBundle")
+        let bundleMetadataURL = wrapperDirectoryURL.appendingPathComponent("BundleMetadata.plist")
 
         try fileManager.createDirectory(at: wrapperURL, withIntermediateDirectories: true)
         try removeExistingItem(at: wrapperDirectoryURL)
         try removeExistingItem(at: wrappedBundleURL)
         try fileManager.createDirectory(at: wrapperDirectoryURL, withIntermediateDirectories: true)
         try fileManager.copyItem(at: appURL, to: copiedAppURL)
+        try writeBundleMetadata(at: bundleMetadataURL)
         try fileManager.createSymbolicLink(
             atPath: wrappedBundleURL.path,
             withDestinationPath: "Wrapper/\(appURL.lastPathComponent)"
@@ -46,6 +48,16 @@ final class MacAppBundleWrapperBuilder: @unchecked Sendable {
             return
         }
         try fileManager.removeItem(at: url)
+    }
+
+    /// Writes metadata required by LaunchServices for iPhoneOS-on-Mac wrappers.
+    private func writeBundleMetadata(at url: URL) throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: [:],
+            format: .xml,
+            options: 0
+        )
+        try data.write(to: url, options: .atomic)
     }
 
     /// Converts a bundle identifier into a stable filesystem name.

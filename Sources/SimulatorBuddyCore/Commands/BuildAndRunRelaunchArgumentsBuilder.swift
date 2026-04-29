@@ -13,6 +13,7 @@ struct BuildAndRunRelaunchArgumentsBuilder: Sendable {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String],
         destination: String
     ) -> [String] {
         var arguments = ["run", "--type", type.rawValue]
@@ -23,6 +24,10 @@ struct BuildAndRunRelaunchArgumentsBuilder: Sendable {
 
         for variable in environment {
             arguments.append(contentsOf: ["--env", variable.commandLineValue])
+        }
+
+        for category in logCategories {
+            arguments.append(contentsOf: ["--log-category", category])
         }
 
         if let bundleIdentifier {

@@ -1,9 +1,14 @@
+import Darwin
 import Foundation
 
 /// Foundation `Process` implementation of `CommandRunning`.
 public final class ProcessCommandRunner: CommandRunning, @unchecked Sendable {
+    private let activeProcesses: ActiveProcessRegistry
+
     /// Creates a command runner that resolves executables through `/usr/bin/env`.
-    public init() {}
+    public init() {
+        activeProcesses = .shared
+    }
 
     /// Runs a command and buffers both output streams until termination.
     public func run(_ command: Command) async throws -> CommandResult {
@@ -29,8 +34,7 @@ public final class ProcessCommandRunner: CommandRunning, @unchecked Sendable {
         }
 
         do {
-            try process.run()
-            process.waitUntilExit()
+            try await runProcess(process)
         } catch {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
@@ -82,8 +86,7 @@ public final class ProcessCommandRunner: CommandRunning, @unchecked Sendable {
         }
 
         do {
-            try process.run()
-            process.waitUntilExit()
+            try await runProcess(process)
         } catch {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
@@ -103,6 +106,17 @@ public final class ProcessCommandRunner: CommandRunning, @unchecked Sendable {
         return process.terminationStatus
     }
 
+    private func runProcess(_ process: Process) async throws {
+        try await withTaskCancellationHandler {
+            try process.run()
+            activeProcesses.register(process)
+            process.waitUntilExit()
+            activeProcesses.unregister(process)
+        } onCancel: {
+            self.activeProcesses.terminate(process, signal: SIGTERM)
+        }
+    }
+
     /// Builds process environment by overlaying command variables onto inherited values.
     private func processEnvironment(for command: Command) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
@@ -110,5 +124,77 @@ public final class ProcessCommandRunner: CommandRunning, @unchecked Sendable {
             environment[variable.key] = variable.value
         }
         return environment
+    }
+}
+
+/// Tracks child processes so task cancellation and terminal signals stop them.
+final class ActiveProcessRegistry: @unchecked Sendable {
+    static let shared = ActiveProcessRegistry()
+
+    private let lock = NSLock()
+    private var processes: [Int32: Process] = [:]
+    private var signalSources: [DispatchSourceSignal] = []
+    private var didInstallSignalHandlers = false
+
+    init() {}
+
+    func register(_ process: Process) {
+        installSignalHandlersIfNeeded()
+        lock.withLock {
+            processes[process.processIdentifier] = process
+        }
+    }
+
+    func unregister(_ process: Process) {
+        lock.withLock {
+            processes[process.processIdentifier] = nil
+        }
+    }
+
+    func terminate(_ process: Process, signal: Int32) {
+        guard process.isRunning else {
+            return
+        }
+        Darwin.kill(process.processIdentifier, signal)
+    }
+
+    private func installSignalHandlersIfNeeded() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard didInstallSignalHandlers == false else {
+            return
+        }
+
+        didInstallSignalHandlers = true
+
+        for signalNumber in [SIGINT, SIGTERM] {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(
+                signal: signalNumber,
+                queue: .global(qos: .userInitiated)
+            )
+            source.setEventHandler { [weak self] in
+                self?.forward(signal: signalNumber)
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+    }
+
+    private func forward(signal signalNumber: Int32) {
+        let snapshot = lock.withLock {
+            Array(processes.values)
+        }
+
+        guard snapshot.isEmpty == false else {
+            Darwin.signal(signalNumber, SIG_DFL)
+            Darwin.raise(signalNumber)
+            return
+        }
+
+        for process in snapshot {
+            terminate(process, signal: signalNumber)
+        }
     }
 }

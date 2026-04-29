@@ -9,13 +9,18 @@ struct RunCommandHandlerTests {
     func providedSimulatorDestination_installsAndLaunchesApp() async throws {
         let rootDirectory = temporaryDirectory()
         let appURL = rootDirectory.appendingPathComponent("Demo App.app", isDirectory: true)
-        try AppBundleFixtureFactory().makeAppBundle(at: appURL, bundleIdentifier: "com.example.Demo")
+        try AppBundleFixtureFactory().makeAppBundle(
+            at: appURL,
+            bundleIdentifier: "com.example.Demo",
+            executableName: "Demo"
+        )
         let runner = RecordingCommandRunner(
             results: [
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "installed\n", stderr: ""),
-                CommandResult(terminationStatus: 42, stdout: "launched\n", stderr: "launch warning\n"),
+                CommandResult(terminationStatus: 0, stdout: "launched\n", stderr: ""),
+                CommandResult(terminationStatus: 42, stdout: "log\n", stderr: ""),
             ]
         )
         let stdout = OutputRecorder()
@@ -36,6 +41,8 @@ struct RunCommandHandlerTests {
         let exitCode = await app.run(
             arguments: [
                 "run",
+                "--log-category", "Video",
+                "--log-category", "WebRTC",
                 "--app", appURL.path,
                 "--destination", "platform=iOS Simulator,id=SIM-1",
             ]
@@ -43,7 +50,7 @@ struct RunCommandHandlerTests {
 
         let commands = await runner.snapshot()
         #expect(exitCode == 42)
-        #expect(commands.count == 4)
+        #expect(commands.count == 5)
         #expect(commands[0] == Command(
             executable: "xcrun",
             arguments: ["simctl", "bootstatus", "SIM-1", "-b"]
@@ -55,11 +62,25 @@ struct RunCommandHandlerTests {
         #expect(commands[2] == Command(executable: "xcrun", arguments: ["simctl", "install", "SIM-1", appURL.path]))
         #expect(commands[3] == Command(
             executable: "xcrun",
-            arguments: ["simctl", "launch", "--console-pty", "--terminate-running-process", "SIM-1", "com.example.Demo"]
+            arguments: ["simctl", "launch", "--terminate-running-process", "SIM-1", "com.example.Demo"]
+        ))
+        #expect(commands[4] == Command(
+            executable: "xcrun",
+            arguments: [
+                "simctl",
+                "spawn",
+                "SIM-1",
+                "log",
+                "stream",
+                "--style",
+                "compact",
+                "--predicate",
+                #"process == "Demo" AND (category == "Video" OR category == "WebRTC")"#,
+            ]
         ))
         #expect(await picker.presentCallCount == 0)
-        #expect(stdout.snapshot() == ["installed\n", "launched\n"])
-        #expect(stderr.snapshot() == ["Streaming app logs. Press Ctrl-C to stop.\n", "launch warning\n"])
+        #expect(stdout.snapshot() == ["installed\n", "launched\n", "log\n"])
+        #expect(stderr.snapshot() == ["Streaming app logs. Press Ctrl-C to stop.\n"])
     }
 
     /// Verifies picker-based simulator launch records history and uses an explicit bundle identifier override.
@@ -67,7 +88,11 @@ struct RunCommandHandlerTests {
     func pickedSimulatorDestination_recordsSelectionAndUsesBundleOverride() async throws {
         let rootDirectory = temporaryDirectory()
         let appURL = rootDirectory.appendingPathComponent("Demo.app", isDirectory: true)
-        try AppBundleFixtureFactory().makeAppBundle(at: appURL, bundleIdentifier: "com.example.Ignored")
+        try AppBundleFixtureFactory().makeAppBundle(
+            at: appURL,
+            bundleIdentifier: "com.example.Ignored",
+            executableName: "Demo"
+        )
         let record = DestinationRecord(
             kind: .simulator,
             udid: "SIM-2",
@@ -78,6 +103,7 @@ struct RunCommandHandlerTests {
         )
         let runner = RecordingCommandRunner(
             results: [
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
@@ -122,7 +148,21 @@ struct RunCommandHandlerTests {
         #expect(commands[2] == Command(executable: "xcrun", arguments: ["simctl", "install", "SIM-2", appURL.path]))
         #expect(commands[3] == Command(
             executable: "xcrun",
-            arguments: ["simctl", "launch", "--console-pty", "--terminate-running-process", "SIM-2", "com.example.Override"]
+            arguments: ["simctl", "launch", "--terminate-running-process", "SIM-2", "com.example.Override"]
+        ))
+        #expect(commands[4] == Command(
+            executable: "xcrun",
+            arguments: [
+                "simctl",
+                "spawn",
+                "SIM-2",
+                "log",
+                "stream",
+                "--style",
+                "compact",
+                "--predicate",
+                #"process == "Demo""#,
+            ]
         ))
         #expect(history?.udid == "SIM-2")
     }
@@ -132,12 +172,17 @@ struct RunCommandHandlerTests {
     func skipInstall_launchesOnly() async throws {
         let rootDirectory = temporaryDirectory()
         let appURL = rootDirectory.appendingPathComponent("Demo.app", isDirectory: true)
-        try AppBundleFixtureFactory().makeAppBundle(at: appURL, bundleIdentifier: "com.example.Demo")
+        try AppBundleFixtureFactory().makeAppBundle(
+            at: appURL,
+            bundleIdentifier: "com.example.Demo",
+            executableName: "Demo"
+        )
         let runner = RecordingCommandRunner(
             results: [
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "launched\n", stderr: ""),
+                CommandResult(terminationStatus: 0, stdout: "log\n", stderr: ""),
             ]
         )
         let app = CLIApplication(
@@ -172,7 +217,21 @@ struct RunCommandHandlerTests {
             ),
             Command(
                 executable: "xcrun",
-                arguments: ["simctl", "launch", "--console-pty", "--terminate-running-process", "SIM-3", "com.example.Demo"]
+                arguments: ["simctl", "launch", "--terminate-running-process", "SIM-3", "com.example.Demo"]
+            ),
+            Command(
+                executable: "xcrun",
+                arguments: [
+                    "simctl",
+                    "spawn",
+                    "SIM-3",
+                    "log",
+                    "stream",
+                    "--style",
+                    "compact",
+                    "--predicate",
+                    #"process == "Demo""#,
+                ]
             ),
         ])
     }

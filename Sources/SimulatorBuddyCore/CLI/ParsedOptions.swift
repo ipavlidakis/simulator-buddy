@@ -32,6 +32,9 @@ struct ParsedOptions {
     /// Raw environment variables forwarded to the launch command.
     var environment: [EnvironmentVariable] = []
 
+    /// Unified logging categories kept when destination log streaming supports filtering.
+    var logCategories: [String] = []
+
     /// Optional `.xcodeproj` path used for destination filtering.
     var xcodeProjectPath: String?
 

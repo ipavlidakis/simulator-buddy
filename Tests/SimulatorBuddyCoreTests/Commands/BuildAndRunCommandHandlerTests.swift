@@ -10,7 +10,11 @@ struct BuildAndRunCommandHandlerTests {
         let rootDirectory = temporaryDirectory()
         let appURL = rootDirectory
             .appendingPathComponent("Build/Products/Debug-iphonesimulator/Demo.app", isDirectory: true)
-        try AppBundleFixtureFactory().makeAppBundle(at: appURL, bundleIdentifier: "com.example.Demo")
+        try AppBundleFixtureFactory().makeAppBundle(
+            at: appURL,
+            bundleIdentifier: "com.example.Demo",
+            executableName: "Demo"
+        )
         let selectedRecord = DestinationRecord(
             kind: .simulator,
             udid: "SIM-1",
@@ -28,7 +32,8 @@ struct BuildAndRunCommandHandlerTests {
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "installed\n", stderr: ""),
-                CommandResult(terminationStatus: 7, stdout: "launched\n", stderr: "launch stderr\n"),
+                CommandResult(terminationStatus: 0, stdout: "launched\n", stderr: ""),
+                CommandResult(terminationStatus: 7, stdout: "log\n", stderr: ""),
             ]
         )
         let stdout = OutputRecorder()
@@ -89,11 +94,25 @@ struct BuildAndRunCommandHandlerTests {
             Command(executable: "xcrun", arguments: ["simctl", "install", "SIM-1", appURL.path]),
             Command(
                 executable: "xcrun",
-                arguments: ["simctl", "launch", "--console-pty", "--terminate-running-process", "SIM-1", "com.example.Demo"]
+                arguments: ["simctl", "launch", "--terminate-running-process", "SIM-1", "com.example.Demo"]
+            ),
+            Command(
+                executable: "xcrun",
+                arguments: [
+                    "simctl",
+                    "spawn",
+                    "SIM-1",
+                    "log",
+                    "stream",
+                    "--style",
+                    "compact",
+                    "--predicate",
+                    #"process == "Demo""#,
+                ]
             ),
         ])
-        #expect(stdout.snapshot() == ["build\n", "installed\n", "launched\n"])
-        #expect(stderr.snapshot() == ["Streaming app logs. Press Ctrl-C to stop.\n", "launch stderr\n"])
+        #expect(stdout.snapshot() == ["build\n", "installed\n", "launched\n", "log\n"])
+        #expect(stderr.snapshot() == ["Streaming app logs. Press Ctrl-C to stop.\n"])
     }
 
     /// Verifies build failure stops before product lookup, install, or launch.
@@ -140,13 +159,18 @@ struct BuildAndRunCommandHandlerTests {
         let rootDirectory = temporaryDirectory()
         let appURL = rootDirectory
             .appendingPathComponent("Build/Products/Debug-iphonesimulator/Demo.app", isDirectory: true)
-        try AppBundleFixtureFactory().makeAppBundle(at: appURL, bundleIdentifier: "com.example.Demo")
+        try AppBundleFixtureFactory().makeAppBundle(
+            at: appURL,
+            bundleIdentifier: "com.example.Demo",
+            executableName: "Demo"
+        )
         let runner = RecordingCommandRunner(
             results: [
                 CommandResult(terminationStatus: 0, stdout: "build\n", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: buildSettingsOutput(rootDirectory: rootDirectory), stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "installed\n", stderr: ""),
                 CommandResult(terminationStatus: 0, stdout: "launched\n", stderr: ""),
+                CommandResult(terminationStatus: 0, stdout: "log\n", stderr: ""),
             ]
         )
         let picker = StubPickerPresenter(result: .failure(DestinationPickerFailure.cancelled))

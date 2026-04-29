@@ -49,6 +49,7 @@ enum ParsedCommand {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String],
         destination: String?
     )
 
@@ -60,6 +61,7 @@ enum ParsedCommand {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String],
         destination: String?
     )
 

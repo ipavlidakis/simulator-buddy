@@ -68,7 +68,6 @@ struct AppLaunchCommandBuilder {
                 arguments: [
                     "simctl",
                     "launch",
-                    "--console-pty",
                     "--terminate-running-process",
                     record.udid,
                     bundleIdentifier,
@@ -92,15 +91,46 @@ struct AppLaunchCommandBuilder {
                 ]
             )
         case .macOS:
-            return Command(executable: "open", arguments: [
-                "-n",
-                "-W",
-                "-o",
-                "/dev/stdout",
-                "--stderr",
-                "/dev/stderr",
-            ] + openEnvironmentArguments(environment)
-                + [try macLaunchAppURL(appURL: appURL, appInfo: appInfo).path])
+            return Command(
+                executable: "open",
+                arguments: try macLaunchArguments(
+                    appURL: appURL,
+                    appInfo: appInfo,
+                    environment: environment
+                )
+            )
+        }
+    }
+
+    /// Builds a unified logging command for destination families that support it.
+    func logStreamCommand(
+        for record: DestinationRecord,
+        appInfo: AppBundleInfo,
+        categories: [String]
+    ) -> Command? {
+        guard let executableName = appInfo.executableName,
+              executableName.isEmpty == false else {
+            return nil
+        }
+
+        let logArguments = [
+            "stream",
+            "--style",
+            "compact",
+            "--predicate",
+            logPredicate(process: executableName, categories: categories),
+        ]
+
+        switch record.kind {
+        case .simulator:
+            return Command(
+                executable: "xcrun",
+                arguments: ["simctl", "spawn", record.udid, "log"] + logArguments
+            )
+        case .device:
+            return nil
+        case .macOS:
+            return Command(executable: "log", arguments: logArguments)
         }
     }
 
@@ -127,6 +157,17 @@ struct AppLaunchCommandBuilder {
         environment.flatMap { ["--env", $0.commandLineValue] }
     }
 
+    /// Builds `open` arguments for native Mac and wrapped iPhoneOS apps.
+    private func macLaunchArguments(
+        appURL: URL,
+        appInfo: AppBundleInfo,
+        environment: [EnvironmentVariable]
+    ) throws -> [String] {
+        let launchURL = try macLaunchAppURL(appURL: appURL, appInfo: appInfo)
+        let baseArguments = ["-n"] + openEnvironmentArguments(environment)
+        return baseArguments + [launchURL.path]
+    }
+
     /// Converts raw environment variables into `devicectl` JSON arguments.
     private func deviceEnvironmentArguments(_ environment: [EnvironmentVariable]) throws -> [String] {
         let dictionary = environmentDictionary(from: environment)
@@ -142,10 +183,40 @@ struct AppLaunchCommandBuilder {
 
     /// Returns the app URL that macOS can open for the selected bundle kind.
     private func macLaunchAppURL(appURL: URL, appInfo: AppBundleInfo) throws -> URL {
-        if appInfo.supportedPlatforms.contains("iPhoneOS"),
-           appInfo.supportedPlatforms.contains("MacOSX") == false {
+        if needsMacWrapper(appInfo) {
             return try macWrapperBuilder.wrappedAppURL(for: appURL, appInfo: appInfo)
         }
         return appURL
+    }
+
+    /// Returns true for iPhoneOS bundles that require macOS wrapper launch.
+    private func needsMacWrapper(_ appInfo: AppBundleInfo) -> Bool {
+        appInfo.supportedPlatforms.contains("iPhoneOS")
+            && appInfo.supportedPlatforms.contains("MacOSX") == false
+    }
+
+    /// Builds the unified log predicate used for app-scoped streaming.
+    private func logPredicate(process: String, categories: [String]) -> String {
+        let processPredicate = "process == \"\(escapedPredicateLiteral(process))\""
+        let categoryPredicates = categories
+            .filter { $0.isEmpty == false }
+            .map { "category == \"\(escapedPredicateLiteral($0))\"" }
+
+        guard categoryPredicates.isEmpty == false else {
+            return processPredicate
+        }
+
+        if categoryPredicates.count == 1 {
+            return "\(processPredicate) AND \(categoryPredicates[0])"
+        }
+
+        return "\(processPredicate) AND (\(categoryPredicates.joined(separator: " OR ")))"
+    }
+
+    /// Escapes a value for an NSPredicate double-quoted string literal.
+    private func escapedPredicateLiteral(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }

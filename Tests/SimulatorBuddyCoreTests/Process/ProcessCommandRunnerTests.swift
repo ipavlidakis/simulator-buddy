@@ -30,4 +30,51 @@ struct ProcessCommandRunnerTests {
         #expect(result.terminationStatus == 0)
         #expect(result.stdout == "value")
     }
+
+    /// Verifies cancellation terminates a live child process.
+    @Test
+    func runStreaming_cancellationTerminatesChildProcess() async throws {
+        let directory = temporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let startedURL = directory.appendingPathComponent("started")
+        let terminatedURL = directory.appendingPathComponent("terminated")
+        let output = OutputRecorder()
+
+        let task = Task {
+            try await ProcessCommandRunner().run(
+                Command(
+                    executable: "perl",
+                    arguments: [
+                        "-e",
+                        """
+                        $SIG{TERM} = sub { open(my $f, '>', $ENV{TERMINATED}); close($f); exit 0; };
+                        $SIG{INT} = $SIG{TERM};
+                        open(my $f, '>', $ENV{STARTED}); close($f);
+                        sleep 5;
+                        """,
+                    ],
+                    environment: [
+                        "STARTED": startedURL.path,
+                        "TERMINATED": terminatedURL.path,
+                    ]
+                ),
+                standardOutput: { output.write($0) },
+                standardError: { _ in }
+            )
+        }
+
+        #expect(await eventually {
+            FileManager.default.fileExists(atPath: startedURL.path)
+        })
+
+        task.cancel()
+
+        _ = try await task.value
+        #expect(await eventually {
+            FileManager.default.fileExists(atPath: terminatedURL.path)
+        })
+    }
 }

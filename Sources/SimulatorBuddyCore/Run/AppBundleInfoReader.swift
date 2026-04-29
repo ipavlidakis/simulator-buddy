@@ -5,7 +5,7 @@ public final class AppBundleInfoReader: Sendable {
     /// Creates an app bundle metadata reader.
     public init() {}
 
-    /// Reads `CFBundleIdentifier` from the app bundle's `Info.plist`.
+    /// Reads launch metadata from the app bundle's `Info.plist`.
     public func read(at appURL: URL) throws -> AppBundleInfo {
         let plistURL = appURL.appendingPathComponent("Info.plist")
         let data = try Data(contentsOf: plistURL)
@@ -21,6 +21,7 @@ public final class AppBundleInfoReader: Sendable {
         let supportedPlatforms = plist["CFBundleSupportedPlatforms"] as? [String] ?? []
         return AppBundleInfo(
             bundleIdentifier: bundleIdentifier,
+            executableName: plist["CFBundleExecutable"] as? String,
             supportedPlatforms: supportedPlatforms
         )
     }

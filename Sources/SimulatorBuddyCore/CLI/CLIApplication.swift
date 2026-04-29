@@ -174,7 +174,7 @@ public final class CLIApplication: @unchecked Sendable {
                 processName: processName,
                 destination: destination
             )
-        case let .run(type, scope, appPath, bundleIdentifier, skipInstall, environment, destination):
+        case let .run(type, scope, appPath, bundleIdentifier, skipInstall, environment, logCategories, destination):
             return try await runCommand.run(
                 type: type,
                 scope: scope,
@@ -182,9 +182,19 @@ public final class CLIApplication: @unchecked Sendable {
                 bundleIdentifier: bundleIdentifier,
                 skipInstall: skipInstall,
                 environment: environment,
+                logCategories: logCategories,
                 destination: destination
             )
-        case let .buildAndRun(type, scope, buildArguments, bundleIdentifier, skipInstall, environment, destination):
+        case let .buildAndRun(
+            type,
+            scope,
+            buildArguments,
+            bundleIdentifier,
+            skipInstall,
+            environment,
+            logCategories,
+            destination
+        ):
             return try await buildAndRunCommand.run(
                 type: type,
                 scope: scope,
@@ -192,6 +202,7 @@ public final class CLIApplication: @unchecked Sendable {
                 bundleIdentifier: bundleIdentifier,
                 skipInstall: skipInstall,
                 environment: environment,
+                logCategories: logCategories,
                 destination: destination
             )
         case let .xcodebuild(arguments):

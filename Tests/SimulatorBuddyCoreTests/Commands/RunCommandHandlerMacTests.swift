@@ -12,10 +12,14 @@ struct RunCommandHandlerMacTests {
         try AppBundleFixtureFactory().makeAppBundle(
             at: appURL,
             bundleIdentifier: "com.example.Demo",
+            executableName: "Demo",
             supportedPlatforms: ["MacOSX"]
         )
         let runner = RecordingCommandRunner(
-            results: [CommandResult(terminationStatus: 0, stdout: "", stderr: "")]
+            results: [
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
+            ]
         )
         let stderr = OutputRecorder()
         let app = makeApplication(rootDirectory: rootDirectory, runner: runner, streamStandardError: stderr.write)
@@ -31,10 +35,19 @@ struct RunCommandHandlerMacTests {
 
         let commands = await runner.snapshot()
         #expect(exitCode == 0)
-        #expect(commands == [Command(
-            executable: "open",
-            arguments: ["-n", "-W", "-o", "/dev/stdout", "--stderr", "/dev/stderr", appURL.path]
-        )])
+        #expect(commands == [
+            Command(executable: "open", arguments: ["-n", appURL.path]),
+            Command(
+                executable: "log",
+                arguments: [
+                    "stream",
+                    "--style",
+                    "compact",
+                    "--predicate",
+                    #"process == "Demo""#,
+                ]
+            ),
+        ])
         #expect(stderr.snapshot() == ["Streaming app logs. Press Ctrl-C to stop.\n"])
     }
 
@@ -46,10 +59,14 @@ struct RunCommandHandlerMacTests {
         try AppBundleFixtureFactory().makeAppBundle(
             at: appURL,
             bundleIdentifier: "com.example.Demo",
+            executableName: "Demo",
             supportedPlatforms: ["iPhoneOS"]
         )
         let runner = RecordingCommandRunner(
-            results: [CommandResult(terminationStatus: 0, stdout: "", stderr: "")]
+            results: [
+                CommandResult(terminationStatus: 0, stdout: "", stderr: ""),
+                CommandResult(terminationStatus: 42, stdout: "log\n", stderr: ""),
+            ]
         )
         let app = makeApplication(rootDirectory: rootDirectory, runner: runner)
 
@@ -57,6 +74,7 @@ struct RunCommandHandlerMacTests {
             arguments: [
                 "run",
                 "--type", "macos",
+                "--log-category", "Video,WebRTC",
                 "--app", appURL.path,
                 "--destination", "platform=macOS,arch=arm64,variant=Designed for iPad,id=MAC-1",
             ]
@@ -68,13 +86,28 @@ struct RunCommandHandlerMacTests {
         let copiedAppURL = wrappedURL
             .appendingPathComponent("Wrapper", isDirectory: true)
             .appendingPathComponent("Demo.app", isDirectory: true)
-        #expect(exitCode == 0)
+        let bundleMetadataURL = wrappedURL
+            .appendingPathComponent("Wrapper", isDirectory: true)
+            .appendingPathComponent("BundleMetadata.plist")
+        #expect(exitCode == 42)
+        #expect(commands.count == 2)
         #expect(commands.first?.executable == "open")
         #expect(commands.first?.arguments.first == "-n")
-        #expect(commands.first?.arguments.contains("-W") == true)
+        #expect(commands.first?.arguments.contains("-W") == false)
+        #expect(commands.last == Command(
+            executable: "log",
+            arguments: [
+                "stream",
+                "--style",
+                "compact",
+                "--predicate",
+                #"process == "Demo" AND (category == "Video" OR category == "WebRTC")"#,
+            ]
+        ))
         #expect(wrappedPath != appURL.path)
         #expect(wrappedURL.lastPathComponent == "com.example.Demo.app")
         #expect(FileManager.default.fileExists(atPath: copiedAppURL.path))
+        #expect(FileManager.default.fileExists(atPath: bundleMetadataURL.path))
         #expect(
             (try? FileManager.default.destinationOfSymbolicLink(
                 atPath: wrappedURL.appendingPathComponent("WrappedBundle").path

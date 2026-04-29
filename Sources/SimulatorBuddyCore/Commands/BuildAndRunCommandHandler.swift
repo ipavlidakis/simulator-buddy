@@ -85,6 +85,7 @@ final class BuildAndRunCommandHandler: @unchecked Sendable {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String],
         destination: String?
     ) async throws -> Int32 {
         guard invocationResolver.context(from: buildArguments) != nil else {
@@ -119,6 +120,7 @@ final class BuildAndRunCommandHandler: @unchecked Sendable {
                     bundleIdentifier: bundleIdentifier,
                     skipInstall: skipInstall,
                     environment: environment,
+                    logCategories: logCategories,
                     record: record
                 )
             )
@@ -141,6 +143,7 @@ final class BuildAndRunCommandHandler: @unchecked Sendable {
             bundleIdentifier: bundleIdentifier ?? product.bundleIdentifier,
             skipInstall: skipInstall,
             environment: environment,
+            logCategories: logCategories,
             destinationRecord: record
         )
     }
@@ -187,6 +190,7 @@ final class BuildAndRunCommandHandler: @unchecked Sendable {
         bundleIdentifier: String?,
         skipInstall: Bool,
         environment: [EnvironmentVariable],
+        logCategories: [String],
         record: DestinationRecord
     ) -> [String] {
         relaunchArgumentsBuilder.arguments(
@@ -196,6 +200,7 @@ final class BuildAndRunCommandHandler: @unchecked Sendable {
             bundleIdentifier: bundleIdentifier,
             skipInstall: skipInstall,
             environment: environment,
+            logCategories: logCategories,
             destination: record.xcodeDestinationSpecifier ?? "id=\(record.udid)"
         )
     }

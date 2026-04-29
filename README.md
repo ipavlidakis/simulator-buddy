@@ -128,8 +128,8 @@ simulator-buddy run \
 Use `--skip-install` to foreground an app that is already installed.
 For Designed-for-iPad-on-Mac builds, `run` wraps the generated iPhoneOS `.app`
 in a stable macOS launcher bundle before opening it. The wrapper lives under
-simulator-buddy's Application Support directory, so macOS may ask for approval
-on first run and reuse the same container afterwards.
+`~/Applications/simulator-buddy`, so macOS may ask for approval on first run and
+reuse the same container afterwards.
 
 Build, select a valid destination, install if needed, and launch:
 
@@ -160,6 +160,22 @@ For Mac destinations, `run` passes each value through `open --env KEY=VALUE`.
 For devices, `run` passes values through `devicectl --environment-variables`.
 For simulators, `run` adds the `SIMCTL_CHILD_` transport prefix internally.
 
+Filter simulator and Mac unified logs by category:
+
+```bash
+simulator-buddy run \
+  --log-category Video \
+  --log-category WebRTC \
+  -project MyApp.xcodeproj \
+  -scheme MyApp \
+  -configuration Debug
+```
+
+`--log-category Video,WebRTC` is equivalent. Simulator and Mac log streaming
+uses `process == "<CFBundleExecutable>"` plus the selected category predicates.
+Physical devices still use `devicectl --console`; CoreDevice provides the live
+console attachment there, but not the same category-filtered unified log stream.
+
 Wrap `xcodebuild` and pick a valid destination for the scheme:
 
 ```bash
@@ -171,6 +187,19 @@ simulator-buddy \
 
 `--type` defaults to `all` when omitted.
 
+## Destination Behavior
+
+| Destination | Run launch | Run logs | Attach |
+| --- | --- | --- | --- |
+| iOS simulator | `simctl install`, `simctl launch` | `simctl spawn <udid> log stream`, scoped to app process and optional categories | LLDB `platform select ios-simulator`, then process attach |
+| Physical iOS device | `devicectl device install app`, `devicectl device process launch --console` | `devicectl --console` app output; category filters are not applied | LLDB `device select <udid>`, then device process attach |
+| Native Mac | `open -n` | host `log stream`, scoped to app process and optional categories | LLDB process attach |
+| Designed for iPad/iPhone on Mac | stable wrapper in `~/Applications/simulator-buddy`, then `open -n` | host `log stream`, scoped to wrapped app process and optional categories | LLDB process attach |
+
+`Ctrl-C`, Zed task stop, and task cancellation are forwarded to the active
+child process so console-backed runs stop the launched app instead of leaving a
+background `devicectl` or app process behind.
+
 ## Output Contract
 
 - `list --format table` prints a human-readable table.
@@ -179,7 +208,11 @@ simulator-buddy \
 - `select` prints the selected UDID by default, or a JSON selection payload with `--format json`.
 - `debug` records the selected destination, writes an LLDB command file, and prints a JSON payload with `destination`, `scope`, `selectedAt`, and `lldbCommandFile`.
 - `attach` records picker selections, writes a temporary LLDB command file, runs `lldb -s <file>`, streams LLDB output, and returns LLDB's exit code. `--destination <udid|specifier>` skips the picker.
-- `run --app <path>` installs and launches on iOS simulators with `simctl`, physical devices with `devicectl`, and Mac destinations with `open`. Simulator runs also open Simulator.app on the selected device. Native Mac bundles open directly; Designed-for-iPad iPhoneOS bundles are copied into one stable wrapper per bundle identifier so macOS can launch them. It attaches the launched app to the terminal where supported (`simctl --console-pty`, `devicectl --console`, or `open -W` stdio), without starting a whole-system log stream. It stays attached until the app exits or the command is interrupted. `--destination <udid|specifier>` skips the picker, `--skip-install` launches without reinstalling, and repeated `--env KEY=VALUE` flags are forwarded unchanged through the selected launch mechanism.
+- `run --app <path>` installs and launches on iOS simulators with `simctl`, physical devices with `devicectl`, and Mac destinations with `open`. Simulator runs also open Simulator.app on the selected device. Native Mac bundles open directly; Designed-for-iPad iPhoneOS bundles are copied into one stable wrapper per bundle identifier under `~/Applications/simulator-buddy` so macOS can launch them.
+- Simulator and Mac `run` launches the app first, then streams app-scoped unified logs with `log stream`. `--log-category <category>` filters those streams by category; repeat it or pass comma-separated values for multiple categories. When no category is provided, the stream is still scoped to the app process.
+- Physical-device `run` keeps using `devicectl --console` so terminal-visible device output stays attached to the launched process. `--log-category` is accepted but not applied to physical-device console output.
+- Interrupting `run` forwards the terminal signal to the active child process. For console-attached launches, this also terminates the device app instead of leaving `devicectl` or the app running in the background.
+- `run --app <path>` and build-and-run both support `--destination <udid|specifier>` to skip the picker, `--skip-install` to launch without reinstalling, and repeated `--env KEY=VALUE` flags forwarded unchanged through the selected launch mechanism.
 - `run -project|-workspace ... -scheme ...` runs `xcodebuild -showdestinations`, prompts with only scheme-valid destinations, runs `xcodebuild build`, resolves the built `.app` through `xcodebuild -showBuildSettings`, then installs/opens/launches it with the same run backend as `run --app`. It uses Xcode's configured DerivedData unless the caller explicitly passes a build setting that changes Xcode output paths. Repeated `--env KEY=VALUE` flags apply only to the final app launch, not the build.
 - Raw `xcodebuild` mode runs `xcodebuild -showdestinations` when project/workspace + scheme are present, prompts with only available scheme destinations, injects `-destination <specifier>`, streams real `xcodebuild` output, and returns `xcodebuild`'s exit code.
 - Raw `xcodebuild` mode passes through unchanged when `-destination` already exists, scheme/project context is missing, or the invocation is info-only or clean-only.
@@ -214,6 +247,13 @@ Files:
 - `history/global.json`
 - `history/scopes/<sha256>.json`
 - `cache/destinations.json`
+
+Mac launcher wrappers for Designed-for-iPad/iPhone apps live outside this state
+directory at:
+
+```text
+~/Applications/simulator-buddy/
+```
 
 The history tracks:
 
@@ -273,6 +313,39 @@ simulator-buddy run --type simulator --app ./Build/Products/Debug-iphonesimulato
 
 This keeps destination choice native and interactive while preserving
 `xcodebuild` and LLDB exit codes for shell scripts and Codex actions.
+
+## Zed Integration
+
+Example `.zed/tasks.json` task:
+
+```json
+[
+  {
+    "label": "Run App",
+    "command": "simulator-buddy",
+    "args": [
+      "run",
+      "--log-category",
+      "Video",
+      "-project",
+      "MyApp.xcodeproj",
+      "-scheme",
+      "MyApp",
+      "-configuration",
+      "Debug"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "hide": "never",
+    "save": "all"
+  }
+]
+```
+
+Stopping the task sends a terminal signal to `simulator-buddy`, which forwards
+it to the active child process.
 
 ## Release Notes For Maintainers
 

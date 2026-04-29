@@ -35,6 +35,10 @@ struct RunCommandParser: Sendable {
                 index += 1
                 let value = try parseValue(arguments, index: index, option: "--env")
                 options.environment.append(try EnvironmentVariable(argument: value))
+            case "--log-category":
+                index += 1
+                let value = try parseValue(arguments, index: index, option: "--log-category")
+                options.logCategories.append(contentsOf: try parseLogCategories(value))
             case "--xcode-project":
                 index += 1
                 buildArguments.append(contentsOf: [
@@ -80,6 +84,7 @@ struct RunCommandParser: Sendable {
                 bundleIdentifier: options.bundleIdentifier,
                 skipInstall: options.skipInstall,
                 environment: options.environment,
+                logCategories: options.logCategories,
                 destination: options.destination
             )
         }
@@ -95,6 +100,7 @@ struct RunCommandParser: Sendable {
             bundleIdentifier: options.bundleIdentifier,
             skipInstall: options.skipInstall,
             environment: options.environment,
+            logCategories: options.logCategories,
             destination: options.destination
         )
     }
@@ -114,5 +120,16 @@ struct RunCommandParser: Sendable {
             throw SimulatorBuddyError.usage("Missing value for \(option)")
         }
         return arguments[index]
+    }
+
+    /// Parses one or more comma-separated log category values.
+    private func parseLogCategories(_ value: String) throws -> [String] {
+        let categories = value.split(separator: ",", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard categories.allSatisfy({ $0.isEmpty == false }) else {
+            throw SimulatorBuddyError.usage("--log-category requires a non-empty category.")
+        }
+        return categories
     }
 }

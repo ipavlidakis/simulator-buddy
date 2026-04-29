@@ -181,6 +181,7 @@ struct CLICommandParser: Sendable {
                 bundleIdentifier: options.bundleIdentifier,
                 skipInstall: options.skipInstall,
                 environment: options.environment,
+                logCategories: options.logCategories,
                 destination: options.destination
             )
         default:
