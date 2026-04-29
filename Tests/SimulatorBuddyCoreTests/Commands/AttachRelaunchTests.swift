@@ -35,7 +35,7 @@ struct AttachRelaunchTests {
             "attach",
             "--type", "device",
             "--scope", "custom-scope",
-            "--process-name", "StreamVideoCallApp-Debug",
+            "--process-name", "MyApp",
         ])
 
         #expect(exitCode == 44)
@@ -45,7 +45,7 @@ struct AttachRelaunchTests {
             "attach",
             "--type", "device",
             "--scope", "custom-scope",
-            "--process-name", "StreamVideoCallApp-Debug",
+            "--process-name", "MyApp",
             "--destination", "DEVICE-1",
         ])
     }

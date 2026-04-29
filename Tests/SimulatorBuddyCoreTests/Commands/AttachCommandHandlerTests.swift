@@ -84,7 +84,7 @@ struct AttachCommandHandlerTests {
         )
 
         let exitCode = await app.run(
-            arguments: ["attach", "--process-name", "Vesputio", "--type", "device"]
+            arguments: ["attach", "--process-name", "MyApp", "--type", "device"]
         )
 
         let history = try await historyStore.resolveLast(
@@ -99,7 +99,7 @@ struct AttachCommandHandlerTests {
         #expect(
             commandsText == """
             device select DEVICE-1
-            device process attach --name "Vesputio" --waitfor --include-existing
+            device process attach --name "MyApp" --waitfor --include-existing
 
             """
         )

@@ -8,9 +8,9 @@ struct XcodeBuildSettingsParserTests {
     @Test
     func parse_returnsAppProduct() throws {
         let output = """
-        Build settings for action build and target StreamVideo:
-            FULL_PRODUCT_NAME = StreamVideo.framework
-            PRODUCT_BUNDLE_IDENTIFIER = io.getstream.framework
+        Build settings for action build and target MyTarget:
+            FULL_PRODUCT_NAME = MyTarget.framework
+            PRODUCT_BUNDLE_IDENTIFIER = com.example.MyTarget
             TARGET_BUILD_DIR = /tmp/Build/Products/Debug-iphoneos
 
         Build settings for action build and target DemoApp:

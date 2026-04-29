@@ -34,7 +34,7 @@ struct DebugCommandHandlerTests {
             arguments: [
                 "debug",
                 "--type", "simulator",
-                "--process-name", "Vesputio",
+                "--process-name", "MyApp",
                 "--lldb-command-file", commandFile.path,
             ]
         )
@@ -46,7 +46,7 @@ struct DebugCommandHandlerTests {
         #expect(
             commands == """
             platform select ios-simulator
-            process attach --name "Vesputio" --waitfor --include-existing
+            process attach --name "MyApp" --waitfor --include-existing
 
             """
         )
@@ -82,7 +82,7 @@ struct DebugCommandHandlerTests {
             arguments: [
                 "debug",
                 "--type", "device",
-                "--process-name", "Vesputio",
+                "--process-name", "MyApp",
                 "--lldb-command-file", commandFile.path,
             ]
         )
@@ -94,7 +94,7 @@ struct DebugCommandHandlerTests {
         #expect(
             commands == """
             device select DEVICE-1
-            device process attach --name "Vesputio" --waitfor --include-existing
+            device process attach --name "MyApp" --waitfor --include-existing
 
             """
         )

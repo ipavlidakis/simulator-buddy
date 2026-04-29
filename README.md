@@ -86,23 +86,23 @@ Write LLDB attach commands for a selected destination:
 ```bash
 simulator-buddy debug \
   --type all \
-  --process-name Vesputio \
-  --lldb-command-file /tmp/vesputio-attach.lldb
+  --process-name MyApp \
+  --lldb-command-file /tmp/myapp-attach.lldb
 ```
 
 Attach with LLDB:
 
 ```bash
-lldb -s /tmp/vesputio-attach.lldb
+lldb -s /tmp/myapp-attach.lldb
 ```
 
 Run LLDB attach directly:
 
 ```bash
-simulator-buddy attach --type all --process-name Vesputio
+simulator-buddy attach --type all --process-name MyApp
 simulator-buddy attach \
   --destination "platform=iOS Simulator,id=SIM-UDID-1" \
-  --process-name Vesputio
+  --process-name MyApp
 ```
 
 Install and launch an app on an iOS simulator:
@@ -281,12 +281,13 @@ Release assets are expected to use these exact names:
 - `simulator-buddy-aarch64-apple-darwin.tar.gz`
 - `simulator-buddy-x86_64-apple-darwin.tar.gz`
 - `checksums.txt`
+- `simulator-buddy.rb`
 
 The Homebrew formula source is rendered from version + checksum metadata:
 
 ```bash
 ./Scripts/render_homebrew_formula.sh \
-  --version 0.1.0 \
+  --version <version> \
   --repo ipavlidakis/simulator-buddy \
   --checksums-file dist/checksums.txt
 ```
